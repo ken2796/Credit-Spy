@@ -1,27 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import type { Session } from '@supabase/supabase-js'
 import { peso } from '../data'
-
-interface CreditItem {
-  id: string
-  name: string
-  total: number
-  termMonths: number
-  monthsPaid: number
-}
+import { localStore, supabaseStore } from '../lib/itemStore'
+import type { CreditItem, ItemStore } from '../lib/itemStore'
+import { supabase } from '../lib/supabase'
+import { AuthForm } from './AuthForm'
 
 type TermUnit = 'months' | 'years'
-
-const STORAGE_KEY = 'credit-spy.items'
-
-function loadItems(): CreditItem[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]')
-    return Array.isArray(parsed) ? (parsed as CreditItem[]) : []
-  } catch {
-    return []
-  }
-}
 
 /** Everything shown for an item is derived from total, term and months paid. */
 function compute(item: Pick<CreditItem, 'total' | 'termMonths' | 'monthsPaid'>) {
@@ -42,8 +28,69 @@ function termLabel(months: number): string {
   return `${years} ${years === 1 ? 'year' : 'years'} (${months} months)`
 }
 
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : 'Something went wrong. Try again.'
+}
+
+/** Picks where items live: Supabase when configured (sign-in required), otherwise this browser. */
 export function CreditItems() {
-  const [items, setItems] = useState<CreditItem[]>(loadItems)
+  const [session, setSession] = useState<Session | null>(null)
+  const [ready, setReady] = useState(supabase === null)
+
+  useEffect(() => {
+    if (!supabase) return
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session)
+      setReady(true)
+    })
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next))
+    return () => data.subscription.unsubscribe()
+  }, [])
+
+  const userId = session?.user.id
+  const store = useMemo<ItemStore | null>(() => {
+    if (!supabase) return localStore
+    return userId ? supabaseStore(supabase) : null
+  }, [userId])
+
+  if (!ready) {
+    return (
+      <section id="items" className="card">
+        <h2>Credit items</h2>
+        <div className="muted">Loading…</div>
+      </section>
+    )
+  }
+
+  if (supabase && !store) {
+    return (
+      <section id="items" className="card">
+        <h2>Credit items</h2>
+        <AuthForm client={supabase} />
+      </section>
+    )
+  }
+
+  return (
+    <ItemList
+      key={userId ?? 'local'}
+      store={store ?? localStore}
+      email={session?.user.email}
+      onSignOut={supabase ? () => void supabase?.auth.signOut() : undefined}
+    />
+  )
+}
+
+interface ItemListProps {
+  store: ItemStore
+  email?: string
+  onSignOut?: () => void
+}
+
+function ItemList({ store, email, onSignOut }: ItemListProps) {
+  const [items, setItems] = useState<CreditItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [total, setTotal] = useState('')
   const [term, setTerm] = useState('')
@@ -51,12 +98,16 @@ export function CreditItems() {
   const [monthsPaid, setMonthsPaid] = useState('0')
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items))
-    } catch {
-      // Storage unavailable (private window): the list still works for this visit.
+    let cancelled = false
+    store
+      .list()
+      .then((list) => !cancelled && setItems(list))
+      .catch((e: unknown) => !cancelled && setError(errorText(e)))
+      .finally(() => !cancelled && setLoading(false))
+    return () => {
+      cancelled = true
     }
-  }, [items])
+  }, [store])
 
   const totalValue = Number(total)
   const termMonths = Math.round(Number(term) * (unit === 'years' ? 12 : 1))
@@ -64,27 +115,42 @@ export function CreditItems() {
   const valid = name.trim() !== '' && totalValue > 0 && termMonths >= 1
   const preview = totalValue > 0 && termMonths >= 1 ? compute({ total: totalValue, termMonths, monthsPaid: paidValue }) : null
 
-  function addItem(event: FormEvent) {
+  async function addItem(event: FormEvent) {
     event.preventDefault()
     if (!valid) return
-    setItems((list) => [
-      ...list,
-      { id: crypto.randomUUID(), name: name.trim(), total: totalValue, termMonths, monthsPaid: paidValue },
-    ])
-    setName('')
-    setTotal('')
-    setTerm('')
-    setMonthsPaid('0')
+    setError(null)
+    try {
+      const created = await store.add({ name: name.trim(), total: totalValue, termMonths, monthsPaid: paidValue })
+      setItems((list) => [...list, created])
+      setName('')
+      setTotal('')
+      setTerm('')
+      setMonthsPaid('0')
+    } catch (e) {
+      setError(errorText(e))
+    }
   }
 
-  function changePaid(id: string, delta: number) {
-    setItems((list) =>
-      list.map((item) =>
-        item.id === id
-          ? { ...item, monthsPaid: Math.min(item.termMonths, Math.max(0, item.monthsPaid + delta)) }
-          : item,
-      ),
-    )
+  async function changePaid(item: CreditItem, delta: number) {
+    const next = Math.min(item.termMonths, Math.max(0, item.monthsPaid + delta))
+    if (next === item.monthsPaid) return
+    setError(null)
+    try {
+      await store.setMonthsPaid(item.id, next)
+      setItems((list) => list.map((i) => (i.id === item.id ? { ...i, monthsPaid: next } : i)))
+    } catch (e) {
+      setError(errorText(e))
+    }
+  }
+
+  async function removeItem(id: string) {
+    setError(null)
+    try {
+      await store.remove(id)
+      setItems((list) => list.filter((i) => i.id !== id))
+    } catch (e) {
+      setError(errorText(e))
+    }
   }
 
   const totals = items.reduce(
@@ -103,14 +169,23 @@ export function CreditItems() {
       <div className="card-head">
         <h2>Credit items</h2>
         <span className="mono muted small">
-          {items.length} {items.length === 1 ? 'item' : 'items'} · saved on this device
+          {items.length} {items.length === 1 ? 'item' : 'items'} · {store.label}
         </span>
       </div>
+
+      {onSignOut && (
+        <div className="account-row small">
+          <span className="muted">Signed in as {email}</span>
+          <button type="button" className="ghost" onClick={onSignOut}>
+            Sign out
+          </button>
+        </div>
+      )}
 
       <form className="item-form" onSubmit={addItem}>
         <label className="field field-wide">
           <span>Item</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Laptop" required />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Laptop" maxLength={120} required />
         </label>
         <label className="field">
           <span>Total amount (₱)</span>
@@ -142,7 +217,15 @@ export function CreditItems() {
           : 'Enter the amount and term to see the monthly payment.'}
       </div>
 
-      {items.length === 0 ? (
+      {error && (
+        <div className="error small" role="alert">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="empty muted">Loading items…</div>
+      ) : items.length === 0 ? (
         <div className="empty muted">No credit items yet. Add the first one above.</div>
       ) : (
         <>
@@ -169,13 +252,13 @@ export function CreditItems() {
                   </div>
                 </div>
                 <div className="item-actions">
-                  <button type="button" className="ghost" onClick={() => changePaid(item.id, -1)} disabled={item.monthsPaid === 0} aria-label={`Undo one paid month for ${item.name}`}>
+                  <button type="button" className="ghost" onClick={() => void changePaid(item, -1)} disabled={item.monthsPaid === 0} aria-label={`Undo one paid month for ${item.name}`}>
                     −1
                   </button>
-                  <button type="button" className="ghost" onClick={() => changePaid(item.id, 1)} disabled={done} aria-label={`Add one paid month for ${item.name}`}>
+                  <button type="button" className="ghost" onClick={() => void changePaid(item, 1)} disabled={done} aria-label={`Add one paid month for ${item.name}`}>
                     +1 month paid
                   </button>
-                  <button type="button" className="ghost" onClick={() => setItems((list) => list.filter((i) => i.id !== item.id))} aria-label={`Remove ${item.name}`}>
+                  <button type="button" className="ghost" onClick={() => void removeItem(item.id)} aria-label={`Remove ${item.name}`}>
                     Remove
                   </button>
                 </div>

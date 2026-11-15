@@ -23,10 +23,28 @@ export function AuthForm({ client }: { client: SupabaseClient }) {
     else if (!data.session) setMessage('Account created. Check your email to confirm it, then sign in.')
   }
 
+  async function signInWithGoogle() {
+    setBusy(true)
+    setMessage(null)
+    // Sends the browser to Google, then back to this page signed in.
+    const { error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    })
+    if (error) {
+      setBusy(false)
+      setMessage(error.message)
+    }
+  }
+
   return (
     <form className="item-form auth-form" onSubmit={submit}>
-      <p className="muted auth-intro">
-        {mode === 'sign-in' ? 'Sign in to see and save your credit items.' : 'Create an account to save your credit items.'}
+      <p className="muted auth-intro">Sign in to see and save your credit items.</p>
+      <button type="button" className="primary google-button" onClick={() => void signInWithGoogle()} disabled={busy}>
+        Continue with Google
+      </button>
+      <p className="muted small auth-intro">
+        {mode === 'sign-in' ? 'Or sign in with email:' : 'Or create an account with email:'}
       </p>
       <label className="field field-wide">
         <span>Email</span>
@@ -43,7 +61,7 @@ export function AuthForm({ client }: { client: SupabaseClient }) {
           required
         />
       </label>
-      <button type="submit" className="primary" disabled={busy}>
+      <button type="submit" className="ghost" disabled={busy}>
         {mode === 'sign-in' ? 'Sign in' : 'Create account'}
       </button>
       <button type="button" className="ghost" onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}>

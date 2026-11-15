@@ -5,11 +5,11 @@ import { ScoreGauge } from './components/ScoreGauge'
 import { accounts, alerts, factors, history, peso } from './data'
 
 const NAV = [
-  { href: '#items', label: 'Credit items' },
-  { href: '#score', label: 'Overview' },
-  { href: '#accounts', label: 'Accounts' },
-  { href: '#alerts', label: 'Alerts' },
-  { href: '#history', label: 'Score history' },
+  { href: '#items', label: 'Credit items', short: 'Items', icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' },
+  { href: '#score', label: 'Overview', short: 'Overview', icon: 'M3.3 17a9 9 0 1 1 17.4 0M12 14l4-4' },
+  { href: '#accounts', label: 'Accounts', short: 'Accounts', icon: 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM2 10h20' },
+  { href: '#alerts', label: 'Alerts', short: 'Alerts', icon: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0' },
+  { href: '#history', label: 'Score history', short: 'History', icon: 'M3 3v18h18M7 15l4-4 3 3 5-6' },
 ]
 
 function Logo() {
@@ -46,7 +46,11 @@ export default function App() {
               aria-current={item.href === active ? 'page' : undefined}
               onClick={() => setActive(item.href)}
             >
-              {item.label}
+              <svg className="nav-icon" aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d={item.icon} />
+              </svg>
+              <span className="nav-label">{item.label}</span>
+              <span className="nav-label-short">{item.short}</span>
               {item.href === '#alerts' && <span className="badge mono">{alerts.length}</span>}
             </a>
           ))}

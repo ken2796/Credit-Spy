@@ -5,6 +5,7 @@ import { ScoreGauge } from './components/ScoreGauge'
 import { accounts, alerts, factors, history, peso } from './data'
 
 const NAV = [
+  { href: '#budget', label: 'Budget', short: 'Budget', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
   { href: '#items', label: 'Credit items', short: 'Items', icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' },
   { href: '#score', label: 'Overview', short: 'Overview', icon: 'M3.3 17a9 9 0 1 1 17.4 0M12 14l4-4' },
   { href: '#accounts', label: 'Accounts', short: 'Accounts', icon: 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM2 10h20' },

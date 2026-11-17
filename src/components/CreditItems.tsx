@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { peso } from '../data'
+import { localIncomeStore, supabaseIncomeStore } from '../lib/incomeStore'
+import type { IncomeStore } from '../lib/incomeStore'
 import { localStore, supabaseStore } from '../lib/itemStore'
 import type { CreditItem, ItemStore } from '../lib/itemStore'
 import { supabase } from '../lib/supabase'
 import { AuthForm } from './AuthForm'
+import { IncomeList } from './IncomeList'
 
 type TermUnit = 'months' | 'years'
 
@@ -52,6 +55,15 @@ export function CreditItems() {
     if (!supabase) return localStore
     return userId ? supabaseStore(supabase) : null
   }, [userId])
+  const incomeStore = useMemo<IncomeStore | null>(() => {
+    if (!supabase) return localIncomeStore
+    return userId ? supabaseIncomeStore(supabase) : null
+  }, [userId])
+
+  const [monthlyIncome, setMonthlyIncome] = useState(0)
+  const [monthlyDues, setMonthlyDues] = useState(0)
+  const reportIncome = useCallback((total: number) => setMonthlyIncome(total), [])
+  const reportDues = useCallback((total: number) => setMonthlyDues(total), [])
 
   if (!ready) {
     return (
@@ -71,23 +83,64 @@ export function CreditItems() {
     )
   }
 
+  const left = monthlyIncome - monthlyDues
+  const key = userId ?? 'local'
+
   return (
-    <ItemList
-      key={userId ?? 'local'}
-      store={store ?? localStore}
-      email={session?.user.email}
-      onSignOut={supabase ? () => void supabase?.auth.signOut() : undefined}
-    />
+    <>
+      <section id="budget" className="card">
+        <div className="card-head">
+          <h2>This month</h2>
+          {supabase && session && (
+            <div className="account-row small">
+              <span className="muted">Signed in as {session.user.email}</span>
+              <button type="button" className="ghost" onClick={() => void supabase?.auth.signOut()}>
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="budget-grid">
+          <div className="budget-stat">
+            <span className="muted small">Income</span>
+            <span className="budget-value mono">{peso.format(monthlyIncome)}</span>
+          </div>
+          <div className="budget-stat">
+            <span className="muted small">Credit dues</span>
+            <span className="budget-value mono">{peso.format(monthlyDues)}</span>
+          </div>
+          <div className="budget-stat">
+            <span className="muted small">Left after dues</span>
+            <span className={`budget-value mono ${left < 0 ? 'negative' : 'accent'}`}>{peso.format(left)}</span>
+          </div>
+        </div>
+        {monthlyIncome > 0 && (
+          <div className="bar" role="img" aria-label={`Dues use ${Math.round((monthlyDues / monthlyIncome) * 100)}% of income`}>
+            <div
+              className={`bar-fill ${monthlyDues / monthlyIncome > 0.4 ? 'watch' : 'good'}`}
+              style={{ width: `${Math.min(100, (monthlyDues / monthlyIncome) * 100)}%` }}
+            />
+          </div>
+        )}
+        <div className="muted small">
+          {monthlyIncome > 0
+            ? `Credit dues take ${Math.round((monthlyDues / monthlyIncome) * 100)}% of your monthly income.`
+            : 'Add your income below to see how much is left after your credit dues.'}
+        </div>
+      </section>
+      <IncomeList key={`income-${key}`} store={incomeStore ?? localIncomeStore} onMonthlyTotal={reportIncome} />
+      <ItemList key={`items-${key}`} store={store ?? localStore} onMonthlyDue={reportDues} />
+    </>
   )
 }
 
 interface ItemListProps {
   store: ItemStore
-  email?: string
-  onSignOut?: () => void
+  /** Reports the total due every month whenever the list changes. */
+  onMonthlyDue: (total: number) => void
 }
 
-function ItemList({ store, email, onSignOut }: ItemListProps) {
+function ItemList({ store, onMonthlyDue }: ItemListProps) {
   const [items, setItems] = useState<CreditItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -164,6 +217,10 @@ function ItemList({ store, email, onSignOut }: ItemListProps) {
     { monthly: 0, remaining: 0 },
   )
 
+  useEffect(() => {
+    onMonthlyDue(totals.monthly)
+  }, [totals.monthly, onMonthlyDue])
+
   return (
     <section id="items" className="card">
       <div className="card-head">
@@ -172,15 +229,6 @@ function ItemList({ store, email, onSignOut }: ItemListProps) {
           {items.length} {items.length === 1 ? 'item' : 'items'} · {store.label}
         </span>
       </div>
-
-      {onSignOut && (
-        <div className="account-row small">
-          <span className="muted">Signed in as {email}</span>
-          <button type="button" className="ghost" onClick={onSignOut}>
-            Sign out
-          </button>
-        </div>
-      )}
 
       <form className="item-form" onSubmit={addItem}>
         <label className="field field-wide">

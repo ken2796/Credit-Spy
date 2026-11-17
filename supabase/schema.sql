@@ -26,3 +26,31 @@ create policy "Users update own items" on public.credit_items
 
 create policy "Users delete own items" on public.credit_items
   for delete to authenticated using ((select auth.uid()) = user_id);
+
+-- Income sources: each signed-in user keeps their own list.
+create table if not exists public.income_sources (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 120),
+  amount numeric(14, 2) not null check (amount > 0),
+  frequency text not null check (frequency in ('monthly', 'semi-monthly', 'biweekly', 'weekly', 'yearly')),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists income_sources_user_id_idx on public.income_sources (user_id);
+
+alter table public.income_sources enable row level security;
+
+create policy "Users read own income" on public.income_sources
+  for select to authenticated using ((select auth.uid()) = user_id);
+
+create policy "Users add own income" on public.income_sources
+  for insert to authenticated with check ((select auth.uid()) = user_id);
+
+create policy "Users update own income" on public.income_sources
+  for update to authenticated using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+create policy "Users delete own income" on public.income_sources
+  for delete to authenticated using ((select auth.uid()) = user_id);
+
+grant select, insert, update, delete on public.income_sources to authenticated;

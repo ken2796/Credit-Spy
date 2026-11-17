@@ -637,3 +637,29 @@ h2 {
     transition: none;
   }
 }
+
+/* Monthly budget summary */
+
+.budget-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.budget-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--active);
+}
+
+.budget-value {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.negative {
+  color: #ffb4a8;
+}

@@ -11,6 +11,8 @@ export interface Transaction {
   date: string
   /** Budget category name for money out, or null. */
   category: string | null
+  /** The spy member whose money this is (their user id), or null when not tied to anyone. */
+  memberId: string | null
 }
 
 export type NewTransaction = Omit<Transaction, 'id'>
@@ -54,7 +56,9 @@ function writeLocal(list: Transaction[]) {
 /** Fallback used until Supabase is configured. */
 export const localTransactionStore: TransactionStore = {
   async list() {
-    return readLocal().sort(newestFirst)
+    return readLocal()
+      .map((t) => ({ ...t, memberId: t.memberId ?? null }))
+      .sort(newestFirst)
   },
   async add(transaction) {
     const created = { ...transaction, id: crypto.randomUUID() }
@@ -73,9 +77,10 @@ interface Row {
   amount: number | string
   occurred_on: string
   category: string | null
+  user_id: string | null
 }
 
-const COLUMNS = 'id, kind, description, amount, occurred_on, category'
+const COLUMNS = 'id, kind, description, amount, occurred_on, category, user_id'
 
 function fromRow(row: Row): Transaction {
   return {
@@ -85,6 +90,7 @@ function fromRow(row: Row): Transaction {
     amount: Number(row.amount),
     date: row.occurred_on,
     category: row.category,
+    memberId: row.user_id,
   }
 }
 
@@ -103,7 +109,16 @@ export function supabaseTransactionStore(client: SupabaseClient, spyId: string):
     },
     async add(t) {
       const { data, error } = await table()
-        .insert({ spy_id: spyId, kind: t.kind, description: t.description, amount: t.amount, occurred_on: t.date, category: t.category })
+        .insert({
+          spy_id: spyId,
+          kind: t.kind,
+          description: t.description,
+          amount: t.amount,
+          occurred_on: t.date,
+          category: t.category,
+          // Left out, the database fills in whoever is signed in.
+          ...(t.memberId ? { user_id: t.memberId } : {}),
+        })
         .select(COLUMNS)
         .single()
       if (error) throw new Error(error.message)

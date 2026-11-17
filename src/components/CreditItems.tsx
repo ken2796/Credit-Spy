@@ -12,8 +12,9 @@ import type { SavingsStore } from '../lib/savingsStore'
 import { localTransactionStore, supabaseTransactionStore } from '../lib/transactionStore'
 import type { TransactionStore } from '../lib/transactionStore'
 import type { CreditItem, ItemStore } from '../lib/itemStore'
-import { clearJoinCode, loadMySpies, readCurrentSpy, readJoinCode, rememberCurrentSpy } from '../lib/spy'
-import type { Spy } from '../lib/spy'
+import { clearJoinCode, listMembers, loadMySpies, readCurrentSpy, readJoinCode, rememberCurrentSpy } from '../lib/spy'
+import type { Spy, SpyMember } from '../lib/spy'
+import type { MemberMoney, Person } from '../lib/memberMoney'
 import { supabase } from '../lib/supabase'
 import type { Tab } from '../lib/tabs'
 import { AuthForm } from './AuthForm'
@@ -127,6 +128,25 @@ export function CreditItems({ tab }: { tab: Tab }) {
     return activeId ? supabaseSavingsStore(supabase, activeId) : null
   }, [activeId])
 
+  const [members, setMembers] = useState<SpyMember[]>([])
+  useEffect(() => {
+    if (!supabase || !activeId) return
+    let cancelled = false
+    listMembers(supabase, activeId)
+      .then((list) => !cancelled && setMembers(list))
+      // Without the member list, entries still show, grouped as former members.
+      .catch(() => !cancelled && setMembers([]))
+    return () => {
+      cancelled = true
+    }
+  }, [activeId])
+  const people = useMemo<Person[]>(
+    () => (supabase ? members.map((m) => ({ id: m.userId, name: m.name || m.email })) : [{ id: null, name: 'You' }]),
+    [members],
+  )
+  const [memberMonth, setMemberMonth] = useState<MemberMoney[]>([])
+  const reportMemberMonth = useCallback((groups: MemberMoney[]) => setMemberMonth(groups), [])
+
   const [monthlyIncome, setMonthlyIncome] = useState(0)
   const [monthlyDues, setMonthlyDues] = useState(0)
   const reportIncome = useCallback((total: number) => setMonthlyIncome(total), [])
@@ -221,13 +241,38 @@ export function CreditItems({ tab }: { tab: Tab }) {
               </>
             )}
           </div>
+          {memberMonth.length > 1 && (
+            <div className="member-summary">
+              <div className="strong small">Each member this month</div>
+              {memberMonth.map((g) => (
+                <div key={g.key} className="member-summary-row small">
+                  <span className="strong">
+                    {g.name}
+                    {g.key !== '' && g.key === userId ? <span className="muted"> (you)</span> : null}
+                  </span>
+                  <span className="mono">
+                    <span className="money-in">In {peso.format(g.moneyIn)}</span>
+                    <span className="money-out">Out {peso.format(g.moneyOut)}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
       {/* These stay mounted on every tab so Home's totals are always current; each renders the part for this tab. */}
       <IncomeList key={`income-${key}`} tab={tab} store={incomeStore ?? localIncomeStore} onMonthlyTotal={reportIncome} />
       <ItemList key={`items-${key}`} tab={tab} store={store ?? localStore} onMonthlyDue={reportDues} />
       <Savings key={`savings-${key}`} tab={tab} store={savingsStore ?? localSavingsStore} onTotalSaved={reportSaved} />
-      <CashFlow key={`cash-${key}`} tab={tab} store={transactionStore ?? localTransactionStore} budgetStore={budgetStore ?? localBudgetStore} />
+      <CashFlow
+        key={`cash-${key}`}
+        tab={tab}
+        store={transactionStore ?? localTransactionStore}
+        budgetStore={budgetStore ?? localBudgetStore}
+        people={people}
+        meId={userId ?? null}
+        onThisMonth={reportMemberMonth}
+      />
       {tab === 'profile' && (
         <section id="account" className="card">
           <h2>Account</h2>

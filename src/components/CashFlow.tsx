@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Budget, BudgetStore } from '../lib/budgetStore'
 import { peso } from '../lib/format'
+import { groupByMember } from '../lib/memberMoney'
+import type { MemberMoney, Person } from '../lib/memberMoney'
 import type { Tab } from '../lib/tabs'
 import { today } from '../lib/transactionStore'
 import type { Kind, Transaction, TransactionStore } from '../lib/transactionStore'
@@ -49,10 +51,16 @@ interface Props {
   tab: Tab
   store: TransactionStore
   budgetStore: BudgetStore
+  /** Whose money is tracked, in display order. */
+  people: Person[]
+  /** The signed-in member, picked first when recording an entry. */
+  meId: string | null
+  /** Reports each member's money in and out for the current calendar month. */
+  onThisMonth: (groups: MemberMoney[]) => void
 }
 
 /** The monthly budget and the money in & out log, which share one month and one list of entries. */
-export function CashFlow({ tab, store, budgetStore }: Props) {
+export function CashFlow({ tab, store, budgetStore, people, meId, onThisMonth }: Props) {
   const [entries, setEntries] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [loading, setLoading] = useState(true)
@@ -76,6 +84,18 @@ export function CashFlow({ tab, store, budgetStore }: Props) {
   }, [store, budgetStore])
 
   const shown = entries.filter((t) => monthOf(t.date) === month)
+
+  const thisMonth = useMemo(() => {
+    const current = monthOf(today())
+    return groupByMember(
+      entries.filter((t) => monthOf(t.date) === current),
+      people,
+    )
+  }, [entries, people])
+
+  useEffect(() => {
+    onThisMonth(thisMonth)
+  }, [thisMonth, onThisMonth])
 
   async function addEntry(entry: Omit<Transaction, 'id'>): Promise<boolean> {
     setError(null)
@@ -150,7 +170,9 @@ export function CashFlow({ tab, store, budgetStore }: Props) {
         onRemove={(b) => void removeBudget(b)}
       />
       {tab === 'home' && (
-        <MoneyLog
+        <MemberMoneyLog
+          people={people}
+          meId={meId}
           entries={shown}
           budgets={budgets}
           month={month}
@@ -346,7 +368,9 @@ function MonthlyBudget({ setup, budgets, entries, month, onMonth, loading, error
   )
 }
 
-interface MoneyLogProps {
+interface MemberMoneyLogProps {
+  people: Person[]
+  meId: string | null
   entries: Transaction[]
   budgets: Budget[]
   month: string
@@ -357,13 +381,17 @@ interface MoneyLogProps {
   onRemove: (id: string) => void
 }
 
-function MoneyLog({ entries, budgets, month, onMonth, loading, error, onAdd, onRemove }: MoneyLogProps) {
-  const [kind, setKind] = useState<Kind>('out')
+/** Money in and out, side by side for each member of the spy. */
+function MemberMoneyLog({ people, meId, entries, budgets, month, onMonth, loading, error, onAdd, onRemove }: MemberMoneyLogProps) {
+  const [memberId, setMemberId] = useState<string>(meId ?? people[0]?.id ?? '')
+  const [kind, setKind] = useState<Kind>('in')
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(today)
   const [category, setCategory] = useState('')
 
+  // Fall back to the first person if the chosen one is no longer listed.
+  const member = people.find((p) => (p.id ?? '') === memberId) ?? people[0]
   const amountValue = Number(amount)
   const valid = description.trim() !== '' && amountValue > 0 && date !== ''
 
@@ -376,6 +404,7 @@ function MoneyLog({ entries, budgets, month, onMonth, loading, error, onAdd, onR
       amount: amountValue,
       date,
       category: kind === 'out' && category ? category : null,
+      memberId: member?.id ?? null,
     })
     if (ok) {
       setDescription('')
@@ -383,33 +412,29 @@ function MoneyLog({ entries, budgets, month, onMonth, loading, error, onAdd, onR
     }
   }
 
-  const moneyIn = entries.filter((t) => t.kind === 'in').reduce((sum, t) => sum + t.amount, 0)
-  const moneyOut = entries.filter((t) => t.kind === 'out').reduce((sum, t) => sum + t.amount, 0)
-  const net = moneyIn - moneyOut
+  const groups = groupByMember(entries, people)
 
   return (
     <section id="cashflow" className="card">
       <div className="card-head">
-        <h2>Money in &amp; out</h2>
+        <h2>Members&apos; money</h2>
         <MonthSwitch month={month} onChange={onMonth} />
       </div>
 
-      <div className="budget-grid">
-        <div className="budget-stat">
-          <span className="muted small">Money in</span>
-          <span className="budget-value mono money-in">{peso.format(moneyIn)}</span>
-        </div>
-        <div className="budget-stat">
-          <span className="muted small">Money out</span>
-          <span className="budget-value mono money-out">{peso.format(moneyOut)}</span>
-        </div>
-        <div className="budget-stat">
-          <span className="muted small">Left</span>
-          <span className={`budget-value mono ${net < 0 ? 'negative' : 'accent'}`}>{peso.format(net)}</span>
-        </div>
-      </div>
-
       <form className="item-form" onSubmit={submit}>
+        {people.length > 1 && (
+          <label className="field field-wide">
+            <span>Member</span>
+            <select value={member?.id ?? ''} onChange={(e) => setMemberId(e.target.value)}>
+              {people.map((p) => (
+                <option key={p.id ?? ''} value={p.id ?? ''}>
+                  {p.name}
+                  {p.id === meId ? ' (you)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="kind-toggle field-wide" role="group" aria-label="Type of entry">
           <button type="button" className={kind === 'in' ? 'kind-button active-in' : 'kind-button'} aria-pressed={kind === 'in'} onClick={() => setKind('in')}>
             + Money in
@@ -450,7 +475,7 @@ function MoneyLog({ entries, budgets, month, onMonth, loading, error, onAdd, onR
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </label>
         <button type="submit" className="primary" disabled={!valid}>
-          Add
+          Add{member && people.length > 1 ? ` for ${member.name}` : ''}
         </button>
       </form>
 
@@ -462,29 +487,49 @@ function MoneyLog({ entries, budgets, month, onMonth, loading, error, onAdd, onR
 
       {loading ? (
         <div className="empty muted">Loading…</div>
-      ) : entries.length === 0 ? (
-        <div className="empty muted">Nothing recorded for {monthLabel(month)} yet.</div>
       ) : (
-        entries.map((t) => (
-          <div key={t.id} className="item-row">
-            <div className="item-main">
-              <div className="strong">{t.description}</div>
-              <div className="muted small">
-                {dayLabel(t.date)}
-                {t.category ? ` · ${t.category}` : ''}
+        <div className="member-grid">
+          {groups.map((g) => {
+            const net = g.moneyIn - g.moneyOut
+            return (
+              <div key={g.key} className="member-col">
+                <div className="strong member-name">
+                  {g.name}
+                  {g.key !== '' && g.key === meId ? <span className="muted"> (you)</span> : null}
+                </div>
+                <div className="member-totals mono small">
+                  <span className="money-in">+{peso.format(g.moneyIn)}</span>
+                  <span className="money-out">−{peso.format(g.moneyOut)}</span>
+                  <span className={net < 0 ? 'negative' : 'accent'}>= {peso.format(net)}</span>
+                </div>
+                {g.entries.length === 0 ? (
+                  <div className="muted small">Nothing in {monthLabel(month)}.</div>
+                ) : (
+                  g.entries.map((t) => (
+                    <div key={t.id} className="member-entry">
+                      <div className="member-entry-top">
+                        <span className="small">{t.description}</span>
+                        <button type="button" className="link-button remove-x" onClick={() => onRemove(t.id)} aria-label={`Remove ${t.description}`}>
+                          ×
+                        </button>
+                      </div>
+                      <div className="member-entry-bottom">
+                        <span className="muted small">
+                          {dayLabel(t.date)}
+                          {t.category ? ` · ${t.category}` : ''}
+                        </span>
+                        <span className={`mono small ${t.kind === 'in' ? 'money-in' : 'money-out'}`}>
+                          {t.kind === 'in' ? '+' : '−'}
+                          {peso.format(t.amount)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
-            </div>
-            <div className={`item-numbers mono ${t.kind === 'in' ? 'money-in' : 'money-out'}`}>
-              {t.kind === 'in' ? '+' : '−'}
-              {peso.format(t.amount)}
-            </div>
-            <div className="item-actions">
-              <button type="button" className="ghost" onClick={() => onRemove(t.id)} aria-label={`Remove ${t.description}`}>
-                Remove
-              </button>
-            </div>
-          </div>
-        ))
+            )
+          })}
+        </div>
       )}
     </section>
   )

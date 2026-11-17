@@ -652,10 +652,24 @@ h2 {
   border-top: 1px solid var(--line);
 }
 
-.member-summary-row .mono {
+.member-summary-numbers {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.member-summary-numbers > span {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px 12px;
+}
+
+.item-edit {
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
 }
 
 .field input[type='date'] {

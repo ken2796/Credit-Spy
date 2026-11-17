@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { peso } from '../data'
+import { peso } from '../lib/format'
 import { localIncomeStore, supabaseIncomeStore } from '../lib/incomeStore'
 import type { IncomeStore } from '../lib/incomeStore'
 import { localStore, supabaseStore } from '../lib/itemStore'
+import { localTransactionStore, supabaseTransactionStore } from '../lib/transactionStore'
+import type { TransactionStore } from '../lib/transactionStore'
 import type { CreditItem, ItemStore } from '../lib/itemStore'
 import { supabase } from '../lib/supabase'
 import { AuthForm } from './AuthForm'
+import { CashFlow } from './CashFlow'
 import { IncomeList } from './IncomeList'
 
 type TermUnit = 'months' | 'years'
@@ -60,6 +63,11 @@ export function CreditItems() {
     return userId ? supabaseIncomeStore(supabase) : null
   }, [userId])
 
+  const transactionStore = useMemo<TransactionStore | null>(() => {
+    if (!supabase) return localTransactionStore
+    return userId ? supabaseTransactionStore(supabase) : null
+  }, [userId])
+
   const [monthlyIncome, setMonthlyIncome] = useState(0)
   const [monthlyDues, setMonthlyDues] = useState(0)
   const reportIncome = useCallback((total: number) => setMonthlyIncome(total), [])
@@ -68,7 +76,7 @@ export function CreditItems() {
   if (!ready) {
     return (
       <section id="items" className="card">
-        <h2>Credit items</h2>
+        <h2>Credit Spy</h2>
         <div className="muted">Loading…</div>
       </section>
     )
@@ -77,7 +85,7 @@ export function CreditItems() {
   if (supabase && !store) {
     return (
       <section id="items" className="card">
-        <h2>Credit items</h2>
+        <h2>Mag-sign in</h2>
         <AuthForm client={supabase} />
       </section>
     )
@@ -130,6 +138,7 @@ export function CreditItems() {
       </section>
       <IncomeList key={`income-${key}`} store={incomeStore ?? localIncomeStore} onMonthlyTotal={reportIncome} />
       <ItemList key={`items-${key}`} store={store ?? localStore} onMonthlyDue={reportDues} />
+      <CashFlow key={`cash-${key}`} store={transactionStore ?? localTransactionStore} />
     </>
   )
 }

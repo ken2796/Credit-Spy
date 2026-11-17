@@ -39,7 +39,7 @@ export function AuthForm({ client }: { client: SupabaseClient }) {
 
   return (
     <form className="item-form auth-form" onSubmit={submit}>
-      <p className="muted auth-intro">Sign in to see and save your credit items.</p>
+      <p className="muted auth-intro">Mag-sign in para makita at ma-save ang income, credit items, at pasok at labas ng pera mo.</p>
       <button type="button" className="primary google-button" onClick={() => void signInWithGoogle()} disabled={busy}>
         Continue with Google
       </button>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { peso } from '../data'
+import { peso } from '../lib/format'
 import { FREQUENCIES, frequencyLabel, monthlyAmount } from '../lib/incomeStore'
 import type { Frequency, Income, IncomeStore } from '../lib/incomeStore'
 

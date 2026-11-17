@@ -1,16 +1,11 @@
 import { useState } from 'react'
 import { CreditItems } from './components/CreditItems'
-import { HistoryChart } from './components/HistoryChart'
-import { ScoreGauge } from './components/ScoreGauge'
-import { accounts, alerts, factors, history, peso } from './data'
 
 const NAV = [
-  { href: '#budget', label: 'Budget', short: 'Budget', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
+  { href: '#budget', label: 'This month', short: 'Budget', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
+  { href: '#income', label: 'Income', short: 'Income', icon: 'M12 19V5M5 12l7-7 7 7' },
   { href: '#items', label: 'Credit items', short: 'Items', icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' },
-  { href: '#score', label: 'Overview', short: 'Overview', icon: 'M3.3 17a9 9 0 1 1 17.4 0M12 14l4-4' },
-  { href: '#accounts', label: 'Accounts', short: 'Accounts', icon: 'M4 5h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM2 10h20' },
-  { href: '#alerts', label: 'Alerts', short: 'Alerts', icon: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0' },
-  { href: '#history', label: 'Score history', short: 'History', icon: 'M3 3v18h18M7 15l4-4 3 3 5-6' },
+  { href: '#cashflow', label: 'Pasok at labas', short: 'In / Out', icon: 'M7 17L17 7M7 7h10v10' },
 ]
 
 function Logo() {
@@ -26,10 +21,6 @@ function Logo() {
 
 export default function App() {
   const [active, setActive] = useState(NAV[0].href)
-  const [scannedAt, setScannedAt] = useState<Date | null>(null)
-
-  const current = history[history.length - 1].score
-  const previous = history[history.length - 2].score
 
   return (
     <div className="shell">
@@ -52,87 +43,20 @@ export default function App() {
               </svg>
               <span className="nav-label">{item.label}</span>
               <span className="nav-label-short">{item.short}</span>
-              {item.href === '#alerts' && <span className="badge mono">{alerts.length}</span>}
             </a>
           ))}
         </div>
-        <div className="sample-note">Sample data. Connect a bureau to watch your real file.</div>
       </nav>
 
       <main className="main">
         <header className="page-head">
           <div>
-            <div className="eyebrow mono">
-              Case file · {scannedAt ? `scanned ${scannedAt.toLocaleTimeString()}` : 'updated Nov 15'}
-            </div>
-            <h1>Your credit, under watch</h1>
+            <div className="eyebrow mono">Credit Spy</div>
+            <h1>Bantay sa pera mo</h1>
           </div>
-          <button type="button" className="primary" onClick={() => setScannedAt(new Date())}>
-            Run a fresh scan
-          </button>
         </header>
 
         <CreditItems />
-
-        <div className="row">
-          <ScoreGauge score={current} change={current - previous} />
-
-          <section className="card factors">
-            <h2>What is moving your score</h2>
-            {factors.map((f) => (
-              <div key={f.label} className="factor">
-                <div className="factor-head">
-                  <span>{f.label}</span>
-                  <span className={`mono ${f.tone === 'watch' ? 'accent' : 'muted'}`}>{f.detail}</span>
-                </div>
-                <div className="bar">
-                  <div className={`bar-fill ${f.tone}`} style={{ width: `${f.health}%` }} />
-                </div>
-              </div>
-            ))}
-          </section>
-        </div>
-
-        <HistoryChart points={history} />
-
-        <div className="row">
-          <section id="accounts" className="card accounts">
-            <h2>Accounts on file</h2>
-            {accounts.map((a) => {
-              const used = Math.round((a.balance / a.limit) * 100)
-              const isCard = a.kind === 'Credit card'
-              return (
-                <div key={a.name} className="list-row">
-                  <div className="grow">
-                    <div className="strong">{a.name}</div>
-                    <div className="muted small">
-                      {a.kind} · {a.note}
-                    </div>
-                  </div>
-                  <div className="bar thin" aria-hidden="true">
-                    <div className={`bar-fill ${isCard && used > 30 ? 'watch' : 'good'}`} style={{ width: `${used}%` }} />
-                  </div>
-                  <div className="amount mono">
-                    {isCard ? `${peso.format(a.balance)} / ${peso.format(a.limit)}` : `${peso.format(a.balance)} left`}
-                  </div>
-                </div>
-              )
-            })}
-          </section>
-
-          <section id="alerts" className="card alerts">
-            <h2>Spy reports</h2>
-            {alerts.map((alert) => (
-              <div key={alert.title} className="list-row top">
-                <span className={`tag mono ${alert.level === 'WATCH' ? 'tag-watch' : 'tag-info'}`}>{alert.level}</span>
-                <div>
-                  <div className="strong">{alert.title}</div>
-                  <div className="muted small">{alert.detail}</div>
-                </div>
-              </div>
-            ))}
-          </section>
-        </div>
       </main>
     </div>
   )

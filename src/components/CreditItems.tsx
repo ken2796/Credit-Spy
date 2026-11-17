@@ -50,7 +50,7 @@ function errorText(error: unknown): string {
 }
 
 /** Picks where money data lives: a shared spy in Supabase when configured (sign-in required), otherwise this browser. */
-export function CreditItems({ tab }: { tab: Tab }) {
+export function CreditItems({ tab, refreshTick }: { tab: Tab; refreshTick: number }) {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(supabase === null)
 
@@ -88,6 +88,11 @@ export function CreditItems({ tab }: { tab: Tab }) {
   useEffect(() => {
     if (userId) void refreshSpies()
   }, [userId, refreshSpies])
+
+  // On refresh, also reload the spy list so names and member counts are current.
+  useEffect(() => {
+    if (refreshTick > 0 && userId) void refreshSpies()
+  }, [refreshTick, userId, refreshSpies])
 
   function switchSpy(id: string) {
     rememberCurrentSpy(id)
@@ -139,7 +144,7 @@ export function CreditItems({ tab }: { tab: Tab }) {
     return () => {
       cancelled = true
     }
-  }, [activeId])
+  }, [activeId, refreshTick])
   const people = useMemo<Person[]>(
     () => (supabase ? members.map((m) => ({ id: m.userId, name: m.name || m.email })) : [{ id: null, name: 'You' }]),
     [members],
@@ -196,7 +201,8 @@ export function CreditItems({ tab }: { tab: Tab }) {
   }
 
   const left = monthlyIncome - monthlyDues
-  const key = activeId ?? 'local'
+  // A new key on refresh remounts each section, so each one loads its data again.
+  const key = `${activeId ?? 'local'}-${refreshTick}`
 
   return (
     <>

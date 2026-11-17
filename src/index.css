@@ -658,3 +658,13 @@ h2 {
 .bar-fill.saved {
   background: #7ee2a8;
 }
+
+/* Monthly budget */
+
+.bar-fill.over {
+  background: #ff8a7a;
+}
+
+.budget-edit {
+  flex: 0 1 140px;
+}

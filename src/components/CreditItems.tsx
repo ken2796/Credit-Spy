@@ -5,6 +5,8 @@ import { peso } from '../lib/format'
 import { localIncomeStore, supabaseIncomeStore } from '../lib/incomeStore'
 import type { IncomeStore } from '../lib/incomeStore'
 import { localStore, supabaseStore } from '../lib/itemStore'
+import { localBudgetStore, supabaseBudgetStore } from '../lib/budgetStore'
+import type { BudgetStore } from '../lib/budgetStore'
 import { localSavingsStore, supabaseSavingsStore } from '../lib/savingsStore'
 import type { SavingsStore } from '../lib/savingsStore'
 import { localTransactionStore, supabaseTransactionStore } from '../lib/transactionStore'
@@ -115,6 +117,10 @@ export function CreditItems() {
     if (!supabase) return localTransactionStore
     return activeId ? supabaseTransactionStore(supabase, activeId) : null
   }, [activeId])
+  const budgetStore = useMemo<BudgetStore | null>(() => {
+    if (!supabase) return localBudgetStore
+    return activeId ? supabaseBudgetStore(supabase, activeId) : null
+  }, [activeId])
   const savingsStore = useMemo<SavingsStore | null>(() => {
     if (!supabase) return localSavingsStore
     return activeId ? supabaseSavingsStore(supabase, activeId) : null
@@ -146,7 +152,7 @@ export function CreditItems() {
     )
   }
 
-  if (supabase && (!activeSpy || !store || !incomeStore || !transactionStore || !savingsStore)) {
+  if (supabase && (!activeSpy || !store || !incomeStore || !transactionStore || !savingsStore || !budgetStore)) {
     return (
       <section id="items" className="card">
         <h2>Credit Spy</h2>
@@ -221,7 +227,7 @@ export function CreditItems() {
       <IncomeList key={`income-${key}`} store={incomeStore ?? localIncomeStore} onMonthlyTotal={reportIncome} />
       <ItemList key={`items-${key}`} store={store ?? localStore} onMonthlyDue={reportDues} />
       <Savings key={`savings-${key}`} store={savingsStore ?? localSavingsStore} onTotalSaved={reportSaved} />
-      <CashFlow key={`cash-${key}`} store={transactionStore ?? localTransactionStore} />
+      <CashFlow key={`cash-${key}`} store={transactionStore ?? localTransactionStore} budgetStore={budgetStore ?? localBudgetStore} />
       {supabase && activeSpy && userId && spies && (
         <SpyPanel
           key={`spy-${key}`}

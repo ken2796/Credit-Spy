@@ -9,6 +9,8 @@ export interface Transaction {
   amount: number
   /** YYYY-MM-DD */
   date: string
+  /** Budget category name for money out, or null. */
+  category: string | null
 }
 
 export type NewTransaction = Omit<Transaction, 'id'>
@@ -70,12 +72,20 @@ interface Row {
   description: string
   amount: number | string
   occurred_on: string
+  category: string | null
 }
 
-const COLUMNS = 'id, kind, description, amount, occurred_on'
+const COLUMNS = 'id, kind, description, amount, occurred_on, category'
 
 function fromRow(row: Row): Transaction {
-  return { id: row.id, kind: row.kind, description: row.description, amount: Number(row.amount), date: row.occurred_on }
+  return {
+    id: row.id,
+    kind: row.kind,
+    description: row.description,
+    amount: Number(row.amount),
+    date: row.occurred_on,
+    category: row.category,
+  }
 }
 
 /** Rows belong to a spy; row level security lets only its members in (supabase/spies.sql). */
@@ -93,7 +103,7 @@ export function supabaseTransactionStore(client: SupabaseClient, spyId: string):
     },
     async add(t) {
       const { data, error } = await table()
-        .insert({ spy_id: spyId, kind: t.kind, description: t.description, amount: t.amount, occurred_on: t.date })
+        .insert({ spy_id: spyId, kind: t.kind, description: t.description, amount: t.amount, occurred_on: t.date, category: t.category })
         .select(COLUMNS)
         .single()
       if (error) throw new Error(error.message)

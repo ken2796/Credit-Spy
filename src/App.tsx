@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { CreditItems } from './components/CreditItems'
 
 const NAV = [
-  { href: '#budget', label: 'This month', short: 'Budget', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
+  { href: '#budget', label: 'This month', short: 'Home', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
   { href: '#income', label: 'Income', short: 'Income', icon: 'M12 19V5M5 12l7-7 7 7' },
   { href: '#items', label: 'Credit items', short: 'Items', icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' },
   { href: '#savings', label: 'Savings', short: 'Savings', icon: 'M19 7h-1V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2zM16 14h.01M3 7h16' },
+  { href: '#monthly-budget', label: 'Monthly budget', short: 'Budget', icon: 'M21 12a9 9 0 1 1-9-9v9zM12 3a9 9 0 0 1 9 9h-9z' },
   { href: '#cashflow', label: 'Money in & out', short: 'In / Out', icon: 'M7 17L17 7M7 7h10v10' },
-  { href: '#spy', label: 'Spy members', short: 'Members', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
+  { href: '#spy', label: 'Spy members', short: 'Spy', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
 ]
 
 function Logo() {

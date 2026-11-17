@@ -637,6 +637,68 @@ h2 {
   line-height: 1;
 }
 
+.add-entry-button {
+  align-self: flex-start;
+}
+
+.statement-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.statement-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.link-button.show-more {
+  align-self: flex-start;
+  min-height: 32px;
+}
+
+.statements {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.statement-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.statement-row:hover {
+  border-color: var(--line-strong);
+}
+
+.statement-row.active {
+  border-color: var(--accent);
+  background: var(--active);
+}
+
+.statement-month {
+  display: flex;
+  flex-direction: column;
+}
+
 .member-summary {
   display: flex;
   flex-direction: column;

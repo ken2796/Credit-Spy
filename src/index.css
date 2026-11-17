@@ -588,3 +588,73 @@ h2 {
 .join-card p {
   margin: 0;
 }
+
+/* Savings */
+
+.goal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.goal .goal-head {
+  padding: 0;
+  border-top: 0;
+}
+
+.goal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.goal-actions .field {
+  flex: 1 1 130px;
+}
+
+.goal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.link-button {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: 500 13px var(--font-body);
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.goal-history {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: var(--active);
+}
+
+.history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-row .mono {
+  margin-left: auto;
+}
+
+.bar-fill.saved {
+  background: #7ee2a8;
+}

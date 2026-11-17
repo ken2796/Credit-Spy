@@ -5,6 +5,8 @@ import { peso } from '../lib/format'
 import { localIncomeStore, supabaseIncomeStore } from '../lib/incomeStore'
 import type { IncomeStore } from '../lib/incomeStore'
 import { localStore, supabaseStore } from '../lib/itemStore'
+import { localSavingsStore, supabaseSavingsStore } from '../lib/savingsStore'
+import type { SavingsStore } from '../lib/savingsStore'
 import { localTransactionStore, supabaseTransactionStore } from '../lib/transactionStore'
 import type { TransactionStore } from '../lib/transactionStore'
 import type { CreditItem, ItemStore } from '../lib/itemStore'
@@ -14,6 +16,7 @@ import { supabase } from '../lib/supabase'
 import { AuthForm } from './AuthForm'
 import { CashFlow } from './CashFlow'
 import { JoinPrompt } from './JoinPrompt'
+import { Savings } from './Savings'
 import { SpyPanel } from './SpyPanel'
 import { IncomeList } from './IncomeList'
 
@@ -112,11 +115,17 @@ export function CreditItems() {
     if (!supabase) return localTransactionStore
     return activeId ? supabaseTransactionStore(supabase, activeId) : null
   }, [activeId])
+  const savingsStore = useMemo<SavingsStore | null>(() => {
+    if (!supabase) return localSavingsStore
+    return activeId ? supabaseSavingsStore(supabase, activeId) : null
+  }, [activeId])
 
   const [monthlyIncome, setMonthlyIncome] = useState(0)
   const [monthlyDues, setMonthlyDues] = useState(0)
   const reportIncome = useCallback((total: number) => setMonthlyIncome(total), [])
   const reportDues = useCallback((total: number) => setMonthlyDues(total), [])
+  const [totalSaved, setTotalSaved] = useState(0)
+  const reportSaved = useCallback((total: number) => setTotalSaved(total), [])
 
   if (!ready) {
     return (
@@ -137,7 +146,7 @@ export function CreditItems() {
     )
   }
 
-  if (supabase && (!activeSpy || !store || !incomeStore || !transactionStore)) {
+  if (supabase && (!activeSpy || !store || !incomeStore || !transactionStore || !savingsStore)) {
     return (
       <section id="items" className="card">
         <h2>Credit Spy</h2>
@@ -190,6 +199,10 @@ export function CreditItems() {
             <span className="muted small">Left after dues</span>
             <span className={`budget-value mono ${left < 0 ? 'negative' : 'accent'}`}>{peso.format(left)}</span>
           </div>
+          <div className="budget-stat">
+            <span className="muted small">Total savings</span>
+            <span className="budget-value mono money-in">{peso.format(totalSaved)}</span>
+          </div>
         </div>
         {monthlyIncome > 0 && (
           <div className="bar" role="img" aria-label={`Dues use ${Math.round((monthlyDues / monthlyIncome) * 100)}% of income`}>
@@ -207,6 +220,7 @@ export function CreditItems() {
       </section>
       <IncomeList key={`income-${key}`} store={incomeStore ?? localIncomeStore} onMonthlyTotal={reportIncome} />
       <ItemList key={`items-${key}`} store={store ?? localStore} onMonthlyDue={reportDues} />
+      <Savings key={`savings-${key}`} store={savingsStore ?? localSavingsStore} onTotalSaved={reportSaved} />
       <CashFlow key={`cash-${key}`} store={transactionStore ?? localTransactionStore} />
       {supabase && activeSpy && userId && spies && (
         <SpyPanel

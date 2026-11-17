@@ -1,12 +1,39 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+export type EntryKind = 'deposit' | 'withdraw' | 'borrow' | 'repay'
+
 export interface SavingsEntry {
   id: string
   goalId: string
-  /** Positive for money put in, negative for money taken out. */
+  kind: EntryKind
+  /** Positive for money put in (deposit, repay), negative for money taken out (withdraw, borrow). */
   amount: number
   /** YYYY-MM-DD */
   date: string
+  /** What a borrow was for. */
+  note: string | null
+  /** When a borrow should be paid back, YYYY-MM-DD. */
+  dueDate: string | null
+  /** For a repay: the borrow it pays back. */
+  loanId: string | null
+}
+
+export interface NewEntry {
+  kind: EntryKind
+  /** Always positive; the sign comes from the kind. */
+  amount: number
+  date: string
+  note?: string | null
+  dueDate?: string | null
+  loanId?: string | null
+}
+
+/** A borrow from savings, with what has been paid back so far. */
+export interface Loan {
+  entry: SavingsEntry
+  borrowed: number
+  repaid: number
+  owed: number
 }
 
 export interface SavingsGoal {
@@ -24,12 +51,31 @@ export interface SavingsStore {
   list(): Promise<SavingsGoal[]>
   addGoal(goal: NewGoal): Promise<SavingsGoal>
   removeGoal(id: string): Promise<void>
-  addEntry(goalId: string, amount: number, date: string): Promise<SavingsEntry>
+  addEntry(goalId: string, entry: NewEntry): Promise<SavingsEntry>
   removeEntry(id: string): Promise<void>
 }
 
 export function savedAmount(goal: SavingsGoal): number {
   return goal.entries.reduce((sum, e) => sum + e.amount, 0)
+}
+
+export function loansOf(goal: SavingsGoal): Loan[] {
+  return goal.entries
+    .filter((e) => e.kind === 'borrow')
+    .map((entry) => {
+      const borrowed = -entry.amount
+      const repaid = goal.entries.filter((e) => e.kind === 'repay' && e.loanId === entry.id).reduce((sum, e) => sum + e.amount, 0)
+      return { entry, borrowed, repaid, owed: Math.max(0, Math.round((borrowed - repaid) * 100) / 100) }
+    })
+}
+
+/** Total still owed back to a goal. */
+export function owedTo(goal: SavingsGoal): number {
+  return loansOf(goal).reduce((sum, l) => sum + l.owed, 0)
+}
+
+function signed(entry: NewEntry): number {
+  return entry.kind === 'withdraw' || entry.kind === 'borrow' ? -Math.abs(entry.amount) : Math.abs(entry.amount)
 }
 
 function newestFirst(a: SavingsEntry, b: SavingsEntry) {
@@ -68,13 +114,22 @@ export const localSavingsStore: SavingsStore = {
   async removeGoal(id) {
     writeLocal(readLocal().filter((g) => g.id !== id))
   },
-  async addEntry(goalId, amount, date) {
-    const entry: SavingsEntry = { id: crypto.randomUUID(), goalId, amount, date }
+  async addEntry(goalId, input) {
+    const entry: SavingsEntry = {
+      id: crypto.randomUUID(),
+      goalId,
+      kind: input.kind,
+      amount: signed(input),
+      date: input.date,
+      note: input.note ?? null,
+      dueDate: input.dueDate ?? null,
+      loanId: input.loanId ?? null,
+    }
     writeLocal(readLocal().map((g) => (g.id === goalId ? { ...g, entries: [entry, ...g.entries].sort(newestFirst) } : g)))
     return entry
   },
   async removeEntry(id) {
-    writeLocal(readLocal().map((g) => ({ ...g, entries: g.entries.filter((e) => e.id !== id) })))
+    writeLocal(readLocal().map((g) => ({ ...g, entries: g.entries.filter((e) => e.id !== id && e.loanId !== id) })))
   },
 }
 
@@ -88,12 +143,27 @@ interface GoalRow {
 interface EntryRow {
   id: string
   goal_id: string
+  kind: EntryKind
   amount: number | string
   occurred_on: string
+  note: string | null
+  due_on: string | null
+  loan_id: string | null
 }
 
+const ENTRY_COLUMNS = 'id, goal_id, kind, amount, occurred_on, note, due_on, loan_id'
+
 function fromEntry(row: EntryRow): SavingsEntry {
-  return { id: row.id, goalId: row.goal_id, amount: Number(row.amount), date: row.occurred_on }
+  return {
+    id: row.id,
+    goalId: row.goal_id,
+    kind: row.kind,
+    amount: Number(row.amount),
+    date: row.occurred_on,
+    note: row.note,
+    dueDate: row.due_on,
+    loanId: row.loan_id,
+  }
 }
 
 /** Goals and entries belong to a spy; row level security lets only its members in (supabase/savings.sql). */
@@ -104,7 +174,7 @@ export function supabaseSavingsStore(client: SupabaseClient, spyId: string): Sav
         client.from('savings_goals').select('id, name, target, target_date').eq('spy_id', spyId).order('created_at'),
         client
           .from('savings_entries')
-          .select('id, goal_id, amount, occurred_on')
+          .select(ENTRY_COLUMNS)
           .eq('spy_id', spyId)
           .order('occurred_on', { ascending: false })
           .order('created_at', { ascending: false }),
@@ -134,11 +204,20 @@ export function supabaseSavingsStore(client: SupabaseClient, spyId: string): Sav
       const { error } = await client.from('savings_goals').delete().eq('id', id)
       if (error) throw new Error(error.message)
     },
-    async addEntry(goalId, amount, date) {
+    async addEntry(goalId, input) {
       const { data, error } = await client
         .from('savings_entries')
-        .insert({ spy_id: spyId, goal_id: goalId, amount, occurred_on: date })
-        .select('id, goal_id, amount, occurred_on')
+        .insert({
+          spy_id: spyId,
+          goal_id: goalId,
+          kind: input.kind,
+          amount: signed(input),
+          occurred_on: input.date,
+          note: input.note || null,
+          due_on: input.dueDate || null,
+          loan_id: input.loanId ?? null,
+        })
+        .select(ENTRY_COLUMNS)
         .single()
       if (error) throw new Error(error.message)
       return fromEntry(data as EntryRow)

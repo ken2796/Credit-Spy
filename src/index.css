@@ -668,3 +668,55 @@ h2 {
 .budget-edit {
   flex: 0 1 140px;
 }
+
+/* Borrowing from savings */
+
+.tag-owed {
+  margin-left: 6px;
+  background: rgba(245, 184, 65, 0.15);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.owed-banner {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(245, 184, 65, 0.12);
+  border: 1px solid rgba(245, 184, 65, 0.5);
+}
+
+.borrow-toggle.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.borrow-form,
+.loans {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--active);
+}
+
+.borrow-form p {
+  margin: 0;
+}
+
+.loan-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.loans .loan-row:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.loan-row .item-main {
+  flex: none;
+}

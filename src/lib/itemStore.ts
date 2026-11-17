@@ -77,19 +77,19 @@ function fromRow(row: Row): CreditItem {
   }
 }
 
-/** Rows are scoped to the signed-in user by row level security (supabase/schema.sql). */
-export function supabaseStore(client: SupabaseClient): ItemStore {
+/** Rows belong to a spy; row level security lets only its members in (supabase/spies.sql). */
+export function supabaseStore(client: SupabaseClient, spyId: string): ItemStore {
   const table = () => client.from('credit_items')
   return {
-    label: 'saved to Supabase',
+    label: 'shared in this spy',
     async list() {
-      const { data, error } = await table().select(COLUMNS).order('created_at')
+      const { data, error } = await table().select(COLUMNS).eq('spy_id', spyId).order('created_at')
       if (error) throw new Error(error.message)
       return (data as Row[]).map(fromRow)
     },
     async add(item) {
       const { data, error } = await table()
-        .insert({ name: item.name, total: item.total, term_months: item.termMonths, months_paid: item.monthsPaid })
+        .insert({ spy_id: spyId, name: item.name, total: item.total, term_months: item.termMonths, months_paid: item.monthsPaid })
         .select(COLUMNS)
         .single()
       if (error) throw new Error(error.message)

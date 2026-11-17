@@ -78,13 +78,14 @@ function fromRow(row: Row): Transaction {
   return { id: row.id, kind: row.kind, description: row.description, amount: Number(row.amount), date: row.occurred_on }
 }
 
-/** Rows are scoped to the signed-in user by row level security (supabase/schema.sql). */
-export function supabaseTransactionStore(client: SupabaseClient): TransactionStore {
+/** Rows belong to a spy; row level security lets only its members in (supabase/spies.sql). */
+export function supabaseTransactionStore(client: SupabaseClient, spyId: string): TransactionStore {
   const table = () => client.from('transactions')
   return {
     async list() {
       const { data, error } = await table()
         .select(COLUMNS)
+        .eq('spy_id', spyId)
         .order('occurred_on', { ascending: false })
         .order('created_at', { ascending: false })
       if (error) throw new Error(error.message)
@@ -92,7 +93,7 @@ export function supabaseTransactionStore(client: SupabaseClient): TransactionSto
     },
     async add(t) {
       const { data, error } = await table()
-        .insert({ kind: t.kind, description: t.description, amount: t.amount, occurred_on: t.date })
+        .insert({ spy_id: spyId, kind: t.kind, description: t.description, amount: t.amount, occurred_on: t.date })
         .select(COLUMNS)
         .single()
       if (error) throw new Error(error.message)

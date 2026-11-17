@@ -4,7 +4,7 @@ export type Frequency = 'monthly' | 'semi-monthly' | 'biweekly' | 'weekly' | 'ye
 
 export const FREQUENCIES: { value: Frequency; label: string; perMonth: number }[] = [
   { value: 'monthly', label: 'Monthly', perMonth: 1 },
-  { value: 'semi-monthly', label: 'Twice a month (kinsenas)', perMonth: 2 },
+  { value: 'semi-monthly', label: 'Twice a month', perMonth: 2 },
   { value: 'biweekly', label: 'Every 2 weeks', perMonth: 26 / 12 },
   { value: 'weekly', label: 'Weekly', perMonth: 52 / 12 },
   { value: 'yearly', label: 'Yearly', perMonth: 1 / 12 },
@@ -82,18 +82,18 @@ function fromRow(row: Row): Income {
   return { id: row.id, name: row.name, amount: Number(row.amount), frequency: row.frequency }
 }
 
-/** Rows are scoped to the signed-in user by row level security (supabase/schema.sql). */
-export function supabaseIncomeStore(client: SupabaseClient): IncomeStore {
+/** Rows belong to a spy; row level security lets only its members in (supabase/spies.sql). */
+export function supabaseIncomeStore(client: SupabaseClient, spyId: string): IncomeStore {
   const table = () => client.from('income_sources')
   return {
     async list() {
-      const { data, error } = await table().select(COLUMNS).order('created_at')
+      const { data, error } = await table().select(COLUMNS).eq('spy_id', spyId).order('created_at')
       if (error) throw new Error(error.message)
       return (data as Row[]).map(fromRow)
     },
     async add(income) {
       const { data, error } = await table()
-        .insert({ name: income.name, amount: income.amount, frequency: income.frequency })
+        .insert({ spy_id: spyId, name: income.name, amount: income.amount, frequency: income.frequency })
         .select(COLUMNS)
         .single()
       if (error) throw new Error(error.message)

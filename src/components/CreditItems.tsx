@@ -8,9 +8,13 @@ import { localStore, supabaseStore } from '../lib/itemStore'
 import { localTransactionStore, supabaseTransactionStore } from '../lib/transactionStore'
 import type { TransactionStore } from '../lib/transactionStore'
 import type { CreditItem, ItemStore } from '../lib/itemStore'
+import { clearJoinCode, loadMySpies, readCurrentSpy, readJoinCode, rememberCurrentSpy } from '../lib/spy'
+import type { Spy } from '../lib/spy'
 import { supabase } from '../lib/supabase'
 import { AuthForm } from './AuthForm'
 import { CashFlow } from './CashFlow'
+import { JoinPrompt } from './JoinPrompt'
+import { SpyPanel } from './SpyPanel'
 import { IncomeList } from './IncomeList'
 
 type TermUnit = 'months' | 'years'
@@ -38,7 +42,7 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong. Try again.'
 }
 
-/** Picks where items live: Supabase when configured (sign-in required), otherwise this browser. */
+/** Picks where money data lives: a shared spy in Supabase when configured (sign-in required), otherwise this browser. */
 export function CreditItems() {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(supabase === null)
@@ -54,19 +58,60 @@ export function CreditItems() {
   }, [])
 
   const userId = session?.user.id
+  const [spies, setSpies] = useState<Spy[] | null>(null)
+  const [spyId, setSpyId] = useState<string | null>(null)
+  const [spyError, setSpyError] = useState<string | null>(null)
+  const [joinCode, setJoinCode] = useState(readJoinCode)
+
+  const refreshSpies = useCallback(async (prefer?: string) => {
+    if (!supabase) return
+    setSpyError(null)
+    try {
+      const list = await loadMySpies(supabase)
+      const wanted = prefer ?? readCurrentSpy()
+      const pick = list.find((s) => s.id === wanted) ?? list[0]
+      setSpies(list)
+      setSpyId(pick?.id ?? null)
+      if (pick) rememberCurrentSpy(pick.id)
+    } catch (e) {
+      setSpyError(errorText(e))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (userId) void refreshSpies()
+  }, [userId, refreshSpies])
+
+  function switchSpy(id: string) {
+    rememberCurrentSpy(id)
+    setSpyId(id)
+  }
+
+  function dismissJoin() {
+    clearJoinCode()
+    setJoinCode(null)
+  }
+
+  function joined(id: string) {
+    dismissJoin()
+    void refreshSpies(id)
+  }
+
+  const activeSpy = userId ? (spies?.find((s) => s.id === spyId) ?? null) : null
+  const activeId = activeSpy?.id ?? null
+
   const store = useMemo<ItemStore | null>(() => {
     if (!supabase) return localStore
-    return userId ? supabaseStore(supabase) : null
-  }, [userId])
+    return activeId ? supabaseStore(supabase, activeId) : null
+  }, [activeId])
   const incomeStore = useMemo<IncomeStore | null>(() => {
     if (!supabase) return localIncomeStore
-    return userId ? supabaseIncomeStore(supabase) : null
-  }, [userId])
-
+    return activeId ? supabaseIncomeStore(supabase, activeId) : null
+  }, [activeId])
   const transactionStore = useMemo<TransactionStore | null>(() => {
     if (!supabase) return localTransactionStore
-    return userId ? supabaseTransactionStore(supabase) : null
-  }, [userId])
+    return activeId ? supabaseTransactionStore(supabase, activeId) : null
+  }, [activeId])
 
   const [monthlyIncome, setMonthlyIncome] = useState(0)
   const [monthlyDues, setMonthlyDues] = useState(0)
@@ -82,23 +127,47 @@ export function CreditItems() {
     )
   }
 
-  if (supabase && !store) {
+  if (supabase && !session) {
     return (
       <section id="items" className="card">
-        <h2>Mag-sign in</h2>
+        <h2>Sign in</h2>
+        {joinCode && <p className="item-preview small">You opened a spy invite. Sign in first, then you can accept it.</p>}
         <AuthForm client={supabase} />
       </section>
     )
   }
 
+  if (supabase && (!activeSpy || !store || !incomeStore || !transactionStore)) {
+    return (
+      <section id="items" className="card">
+        <h2>Credit Spy</h2>
+        {spyError ? (
+          <>
+            <div className="error small" role="alert">
+              {spyError}
+            </div>
+            <div className="item-actions">
+              <button type="button" className="ghost" onClick={() => void refreshSpies()}>
+                Try again
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="muted">Loading your spy…</div>
+        )}
+      </section>
+    )
+  }
+
   const left = monthlyIncome - monthlyDues
-  const key = userId ?? 'local'
+  const key = activeId ?? 'local'
 
   return (
     <>
+      {supabase && joinCode && <JoinPrompt client={supabase} code={joinCode} onJoined={joined} onDismiss={dismissJoin} />}
       <section id="budget" className="card">
         <div className="card-head">
-          <h2>This month</h2>
+          <h2>This month{activeSpy ? ` · ${activeSpy.name}` : ''}</h2>
           {supabase && session && (
             <div className="account-row small">
               <span className="muted">Signed in as {session.user.email}</span>
@@ -132,13 +201,24 @@ export function CreditItems() {
         )}
         <div className="muted small">
           {monthlyIncome > 0
-            ? `Credit dues take ${Math.round((monthlyDues / monthlyIncome) * 100)}% of your monthly income.`
+            ? `Credit dues take ${Math.round((monthlyDues / monthlyIncome) * 100)}% of the monthly income.`
             : 'Add your income below to see how much is left after your credit dues.'}
         </div>
       </section>
       <IncomeList key={`income-${key}`} store={incomeStore ?? localIncomeStore} onMonthlyTotal={reportIncome} />
       <ItemList key={`items-${key}`} store={store ?? localStore} onMonthlyDue={reportDues} />
       <CashFlow key={`cash-${key}`} store={transactionStore ?? localTransactionStore} />
+      {supabase && activeSpy && userId && spies && (
+        <SpyPanel
+          key={`spy-${key}`}
+          client={supabase}
+          spy={activeSpy}
+          spies={spies}
+          userId={userId}
+          onSwitch={switchSpy}
+          onLeft={() => void refreshSpies()}
+        />
+      )}
     </>
   )
 }

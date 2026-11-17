@@ -87,7 +87,7 @@ export function CashFlow({ store }: { store: TransactionStore }) {
   return (
     <section id="cashflow" className="card">
       <div className="card-head">
-        <h2>Pasok at labas ng pera</h2>
+        <h2>Money in &amp; out</h2>
         <div className="month-switch">
           <button type="button" className="ghost" onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
             ‹
@@ -101,15 +101,15 @@ export function CashFlow({ store }: { store: TransactionStore }) {
 
       <div className="budget-grid">
         <div className="budget-stat">
-          <span className="muted small">Pasok (in)</span>
+          <span className="muted small">Money in</span>
           <span className="budget-value mono money-in">{peso.format(moneyIn)}</span>
         </div>
         <div className="budget-stat">
-          <span className="muted small">Labas (out)</span>
+          <span className="muted small">Money out</span>
           <span className="budget-value mono money-out">{peso.format(moneyOut)}</span>
         </div>
         <div className="budget-stat">
-          <span className="muted small">Natira</span>
+          <span className="muted small">Left</span>
           <span className={`budget-value mono ${net < 0 ? 'negative' : 'accent'}`}>{peso.format(net)}</span>
         </div>
       </div>
@@ -117,10 +117,10 @@ export function CashFlow({ store }: { store: TransactionStore }) {
       <form className="item-form" onSubmit={addEntry}>
         <div className="kind-toggle field-wide" role="group" aria-label="Type of entry">
           <button type="button" className={kind === 'in' ? 'kind-button active-in' : 'kind-button'} aria-pressed={kind === 'in'} onClick={() => setKind('in')}>
-            + Pasok
+            + Money in
           </button>
           <button type="button" className={kind === 'out' ? 'kind-button active-out' : 'kind-button'} aria-pressed={kind === 'out'} onClick={() => setKind('out')}>
-            − Labas
+            − Money out
           </button>
         </div>
         <label className="field field-wide">
@@ -128,7 +128,7 @@ export function CashFlow({ store }: { store: TransactionStore }) {
           <input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder={kind === 'in' ? 'e.g. Sweldo, bayad ng client' : 'e.g. Grocery, kuryente, pamasahe'}
+            placeholder={kind === 'in' ? 'e.g. Salary, client payment' : 'e.g. Groceries, electricity, fare'}
             maxLength={120}
             required
           />
@@ -155,7 +155,7 @@ export function CashFlow({ store }: { store: TransactionStore }) {
       {loading ? (
         <div className="empty muted">Loading…</div>
       ) : shown.length === 0 ? (
-        <div className="empty muted">Wala pang naitala para sa {monthLabel(month)}.</div>
+        <div className="empty muted">Nothing recorded for {monthLabel(month)} yet.</div>
       ) : (
         shown.map((t) => (
           <div key={t.id} className="item-row">

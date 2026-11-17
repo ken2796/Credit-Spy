@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Budget, BudgetStore } from '../lib/budgetStore'
 import { peso } from '../lib/format'
+import type { Tab } from '../lib/tabs'
 import { today } from '../lib/transactionStore'
 import type { Kind, Transaction, TransactionStore } from '../lib/transactionStore'
 
@@ -45,12 +46,13 @@ function MonthSwitch({ month, onChange }: { month: string; onChange: (month: str
 }
 
 interface Props {
+  tab: Tab
   store: TransactionStore
   budgetStore: BudgetStore
 }
 
 /** The monthly budget and the money in & out log, which share one month and one list of entries. */
-export function CashFlow({ store, budgetStore }: Props) {
+export function CashFlow({ tab, store, budgetStore }: Props) {
   const [entries, setEntries] = useState<Transaction[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [loading, setLoading] = useState(true)
@@ -131,9 +133,12 @@ export function CashFlow({ store, budgetStore }: Props) {
     }
   }
 
+  if (tab === 'profile') return null
+
   return (
     <>
       <MonthlyBudget
+        setup={tab === 'setup'}
         budgets={budgets}
         entries={shown}
         month={month}
@@ -144,21 +149,25 @@ export function CashFlow({ store, budgetStore }: Props) {
         onSetLimit={(id, limit) => void setLimit(id, limit)}
         onRemove={(b) => void removeBudget(b)}
       />
-      <MoneyLog
-        entries={shown}
-        budgets={budgets}
-        month={month}
-        onMonth={setMonth}
-        loading={loading}
-        error={error}
-        onAdd={addEntry}
-        onRemove={(id) => void removeEntry(id)}
-      />
+      {tab === 'home' && (
+        <MoneyLog
+          entries={shown}
+          budgets={budgets}
+          month={month}
+          onMonth={setMonth}
+          loading={loading}
+          error={error}
+          onAdd={addEntry}
+          onRemove={(id) => void removeEntry(id)}
+        />
+      )}
     </>
   )
 }
 
 interface MonthlyBudgetProps {
+  /** Setup adds and edits categories; Home only shows how much of each is spent. */
+  setup: boolean
   budgets: Budget[]
   entries: Transaction[]
   month: string
@@ -170,7 +179,7 @@ interface MonthlyBudgetProps {
   onRemove: (budget: Budget) => void
 }
 
-function MonthlyBudget({ budgets, entries, month, onMonth, loading, error, onAdd, onSetLimit, onRemove }: MonthlyBudgetProps) {
+function MonthlyBudget({ setup, budgets, entries, month, onMonth, loading, error, onAdd, onSetLimit, onRemove }: MonthlyBudgetProps) {
   const [name, setName] = useState('')
   const [limit, setLimit] = useState('')
   const [editing, setEditing] = useState<string | null>(null)
@@ -211,10 +220,10 @@ function MonthlyBudget({ budgets, entries, month, onMonth, loading, error, onAdd
     <section id="monthly-budget" className="card">
       <div className="card-head">
         <h2>Monthly budget</h2>
-        <MonthSwitch month={month} onChange={onMonth} />
+        {!setup && <MonthSwitch month={month} onChange={onMonth} />}
       </div>
 
-      {budgets.length > 0 && (
+      {!setup && budgets.length > 0 && (
         <div className="budget-grid">
           <div className="budget-stat">
             <span className="muted small">Budgeted</span>
@@ -231,19 +240,21 @@ function MonthlyBudget({ budgets, entries, month, onMonth, loading, error, onAdd
         </div>
       )}
 
-      <form className="item-form" onSubmit={submit}>
-        <label className="field field-wide">
-          <span>Category</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Groceries, Bills, Transport" maxLength={60} required />
-        </label>
-        <label className="field">
-          <span>Monthly limit (₱)</span>
-          <input type="number" inputMode="decimal" min="1" step="any" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="8000" required />
-        </label>
-        <button type="submit" className="primary" disabled={!valid}>
-          Add budget
-        </button>
-      </form>
+      {setup && (
+        <form className="item-form" onSubmit={submit}>
+          <label className="field field-wide">
+            <span>Category</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Groceries, Bills, Transport" maxLength={60} required />
+          </label>
+          <label className="field">
+            <span>Monthly limit (₱)</span>
+            <input type="number" inputMode="decimal" min="1" step="any" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="8000" required />
+          </label>
+          <button type="submit" className="primary" disabled={!valid}>
+            Add budget
+          </button>
+        </form>
+      )}
 
       {error && (
         <div className="error small" role="alert">
@@ -255,7 +266,13 @@ function MonthlyBudget({ budgets, entries, month, onMonth, loading, error, onAdd
         <div className="empty muted">Loading budget…</div>
       ) : budgets.length === 0 ? (
         <div className="empty muted">
-          No budget yet. Add a category with a monthly limit, then pick that category when you record money out.
+          {setup ? (
+            'No budget yet. Add a category with a monthly limit, then pick that category when you record money out on Home.'
+          ) : (
+            <>
+              No budget yet. Add categories with monthly limits in <a href="#setup">Setup</a>.
+            </>
+          )}
         </div>
       ) : (
         budgets.map((b) => {
@@ -274,7 +291,7 @@ function MonthlyBudget({ budgets, entries, month, onMonth, loading, error, onAdd
                   {peso.format(spent)} of {peso.format(b.limit)} · {left < 0 ? `${peso.format(-left)} over` : `${peso.format(left)} left`}
                 </div>
               </div>
-              {editing === b.id ? (
+              {!setup ? null : editing === b.id ? (
                 <div className="item-actions">
                   <label className="field budget-edit">
                     <span>New limit (₱)</span>
@@ -322,7 +339,7 @@ function MonthlyBudget({ budgets, entries, month, onMonth, loading, error, onAdd
         })
       )}
 
-      {budgets.length > 0 && uncategorized > 0 && (
+      {!setup && budgets.length > 0 && uncategorized > 0 && (
         <div className="muted small">{peso.format(uncategorized)} of money out this month has no budget category.</div>
       )}
     </section>

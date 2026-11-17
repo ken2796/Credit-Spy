@@ -1,15 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CreditItems } from './components/CreditItems'
+import { tabFromHash } from './lib/tabs'
+import type { Tab } from './lib/tabs'
 
-const NAV = [
-  { href: '#budget', label: 'This month', short: 'Home', icon: 'M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6' },
-  { href: '#income', label: 'Income', short: 'Income', icon: 'M12 19V5M5 12l7-7 7 7' },
-  { href: '#items', label: 'Credit items', short: 'Items', icon: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01' },
-  { href: '#savings', label: 'Savings', short: 'Savings', icon: 'M19 7h-1V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2zM16 14h.01M3 7h16' },
-  { href: '#monthly-budget', label: 'Monthly budget', short: 'Budget', icon: 'M21 12a9 9 0 1 1-9-9v9zM12 3a9 9 0 0 1 9 9h-9z' },
-  { href: '#cashflow', label: 'Money in & out', short: 'In / Out', icon: 'M7 17L17 7M7 7h10v10' },
-  { href: '#spy', label: 'Spy members', short: 'Spy', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
+const NAV: { tab: Tab; label: string; icon: string }[] = [
+  { tab: 'home', label: 'Home', icon: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z' },
+  { tab: 'setup', label: 'Setup', icon: 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6' },
+  { tab: 'profile', label: 'Profile', icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8' },
 ]
+
+const HEADINGS: Record<Tab, string> = {
+  home: 'Your money, under watch',
+  setup: 'Set up your numbers',
+  profile: 'Account and members',
+}
 
 function Logo() {
   return (
@@ -23,7 +27,16 @@ function Logo() {
 }
 
 export default function App() {
-  const [active, setActive] = useState(NAV[0].href)
+  const [tab, setTab] = useState<Tab>(() => tabFromHash(window.location.hash))
+
+  useEffect(() => {
+    function onHash() {
+      setTab(tabFromHash(window.location.hash))
+      window.scrollTo(0, 0)
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   return (
     <div className="shell">
@@ -35,17 +48,15 @@ export default function App() {
         <div className="nav-links">
           {NAV.map((item) => (
             <a
-              key={item.href}
-              href={item.href}
-              className={item.href === active ? 'nav-link active' : 'nav-link'}
-              aria-current={item.href === active ? 'page' : undefined}
-              onClick={() => setActive(item.href)}
+              key={item.tab}
+              href={`#${item.tab}`}
+              className={item.tab === tab ? 'nav-link active' : 'nav-link'}
+              aria-current={item.tab === tab ? 'page' : undefined}
             >
               <svg className="nav-icon" aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d={item.icon} />
               </svg>
               <span className="nav-label">{item.label}</span>
-              <span className="nav-label-short">{item.short}</span>
             </a>
           ))}
         </div>
@@ -55,11 +66,11 @@ export default function App() {
         <header className="page-head">
           <div>
             <div className="eyebrow mono">Credit Spy</div>
-            <h1>Your money, under watch</h1>
+            <h1>{HEADINGS[tab]}</h1>
           </div>
         </header>
 
-        <CreditItems />
+        <CreditItems tab={tab} />
       </main>
     </div>
   )

@@ -129,10 +129,6 @@ h2 {
   flex: 1 1 auto;
 }
 
-.nav-label-short {
-  display: none;
-}
-
 .nav-icon {
   flex: 0 0 auto;
 }
@@ -433,7 +429,7 @@ h2 {
     justify-content: center;
     gap: 4px;
     padding: 0 2px;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .nav-link.active {
@@ -441,11 +437,7 @@ h2 {
   }
 
   .nav-label {
-    display: none;
-  }
-
-  .nav-label-short {
-    display: block;
+    flex: 0 0 auto;
   }
 
 

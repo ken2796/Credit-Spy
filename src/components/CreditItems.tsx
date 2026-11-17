@@ -15,6 +15,7 @@ import type { CreditItem, ItemStore } from '../lib/itemStore'
 import { clearJoinCode, loadMySpies, readCurrentSpy, readJoinCode, rememberCurrentSpy } from '../lib/spy'
 import type { Spy } from '../lib/spy'
 import { supabase } from '../lib/supabase'
+import type { Tab } from '../lib/tabs'
 import { AuthForm } from './AuthForm'
 import { CashFlow } from './CashFlow'
 import { JoinPrompt } from './JoinPrompt'
@@ -48,7 +49,7 @@ function errorText(error: unknown): string {
 }
 
 /** Picks where money data lives: a shared spy in Supabase when configured (sign-in required), otherwise this browser. */
-export function CreditItems() {
+export function CreditItems({ tab }: { tab: Tab }) {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(supabase === null)
 
@@ -180,55 +181,69 @@ export function CreditItems() {
   return (
     <>
       {supabase && joinCode && <JoinPrompt client={supabase} code={joinCode} onJoined={joined} onDismiss={dismissJoin} />}
-      <section id="budget" className="card">
-        <div className="card-head">
-          <h2>This month{activeSpy ? ` · ${activeSpy.name}` : ''}</h2>
-          {supabase && session && (
-            <div className="account-row small">
-              <span className="muted">Signed in as {session.user.email}</span>
+      {tab === 'home' && (
+        <section id="budget" className="card">
+          <div className="card-head">
+            <h2>This month{activeSpy ? ` · ${activeSpy.name}` : ''}</h2>
+          </div>
+          <div className="budget-grid">
+            <div className="budget-stat">
+              <span className="muted small">Income</span>
+              <span className="budget-value mono">{peso.format(monthlyIncome)}</span>
+            </div>
+            <div className="budget-stat">
+              <span className="muted small">Credit dues</span>
+              <span className="budget-value mono">{peso.format(monthlyDues)}</span>
+            </div>
+            <div className="budget-stat">
+              <span className="muted small">Left after dues</span>
+              <span className={`budget-value mono ${left < 0 ? 'negative' : 'accent'}`}>{peso.format(left)}</span>
+            </div>
+            <div className="budget-stat">
+              <span className="muted small">Total savings</span>
+              <span className="budget-value mono money-in">{peso.format(totalSaved)}</span>
+            </div>
+          </div>
+          {monthlyIncome > 0 && (
+            <div className="bar" role="img" aria-label={`Dues use ${Math.round((monthlyDues / monthlyIncome) * 100)}% of income`}>
+              <div
+                className={`bar-fill ${monthlyDues / monthlyIncome > 0.4 ? 'watch' : 'good'}`}
+                style={{ width: `${Math.min(100, (monthlyDues / monthlyIncome) * 100)}%` }}
+              />
+            </div>
+          )}
+          <div className="muted small">
+            {monthlyIncome > 0 ? (
+              `Credit dues take ${Math.round((monthlyDues / monthlyIncome) * 100)}% of the monthly income.`
+            ) : (
+              <>
+                Add your income in <a href="#setup">Setup</a> to see how much is left after your credit dues.
+              </>
+            )}
+          </div>
+        </section>
+      )}
+      {/* These stay mounted on every tab so Home's totals are always current; each renders the part for this tab. */}
+      <IncomeList key={`income-${key}`} tab={tab} store={incomeStore ?? localIncomeStore} onMonthlyTotal={reportIncome} />
+      <ItemList key={`items-${key}`} tab={tab} store={store ?? localStore} onMonthlyDue={reportDues} />
+      <Savings key={`savings-${key}`} tab={tab} store={savingsStore ?? localSavingsStore} onTotalSaved={reportSaved} />
+      <CashFlow key={`cash-${key}`} tab={tab} store={transactionStore ?? localTransactionStore} budgetStore={budgetStore ?? localBudgetStore} />
+      {tab === 'profile' && (
+        <section id="account" className="card">
+          <h2>Account</h2>
+          {supabase && session ? (
+            <div className="account-row">
+              <span className="muted small">Signed in as {session.user.email}</span>
               <button type="button" className="ghost" onClick={() => void supabase?.auth.signOut()}>
                 Sign out
               </button>
             </div>
+          ) : (
+            <div className="muted small">Your data is saved in this browser only. Sign-in and shared members need Supabase to be set up.</div>
           )}
-        </div>
-        <div className="budget-grid">
-          <div className="budget-stat">
-            <span className="muted small">Income</span>
-            <span className="budget-value mono">{peso.format(monthlyIncome)}</span>
-          </div>
-          <div className="budget-stat">
-            <span className="muted small">Credit dues</span>
-            <span className="budget-value mono">{peso.format(monthlyDues)}</span>
-          </div>
-          <div className="budget-stat">
-            <span className="muted small">Left after dues</span>
-            <span className={`budget-value mono ${left < 0 ? 'negative' : 'accent'}`}>{peso.format(left)}</span>
-          </div>
-          <div className="budget-stat">
-            <span className="muted small">Total savings</span>
-            <span className="budget-value mono money-in">{peso.format(totalSaved)}</span>
-          </div>
-        </div>
-        {monthlyIncome > 0 && (
-          <div className="bar" role="img" aria-label={`Dues use ${Math.round((monthlyDues / monthlyIncome) * 100)}% of income`}>
-            <div
-              className={`bar-fill ${monthlyDues / monthlyIncome > 0.4 ? 'watch' : 'good'}`}
-              style={{ width: `${Math.min(100, (monthlyDues / monthlyIncome) * 100)}%` }}
-            />
-          </div>
-        )}
-        <div className="muted small">
-          {monthlyIncome > 0
-            ? `Credit dues take ${Math.round((monthlyDues / monthlyIncome) * 100)}% of the monthly income.`
-            : 'Add your income below to see how much is left after your credit dues.'}
-        </div>
-      </section>
-      <IncomeList key={`income-${key}`} store={incomeStore ?? localIncomeStore} onMonthlyTotal={reportIncome} />
-      <ItemList key={`items-${key}`} store={store ?? localStore} onMonthlyDue={reportDues} />
-      <Savings key={`savings-${key}`} store={savingsStore ?? localSavingsStore} onTotalSaved={reportSaved} />
-      <CashFlow key={`cash-${key}`} store={transactionStore ?? localTransactionStore} budgetStore={budgetStore ?? localBudgetStore} />
-      {supabase && activeSpy && userId && spies && (
+        </section>
+      )}
+      {tab === 'profile' && supabase && activeSpy && userId && spies && (
         <SpyPanel
           key={`spy-${key}`}
           client={supabase}
@@ -244,12 +259,13 @@ export function CreditItems() {
 }
 
 interface ItemListProps {
+  tab: Tab
   store: ItemStore
   /** Reports the total due every month whenever the list changes. */
   onMonthlyDue: (total: number) => void
 }
 
-function ItemList({ store, onMonthlyDue }: ItemListProps) {
+function ItemList({ tab, store, onMonthlyDue }: ItemListProps) {
   const [items, setItems] = useState<CreditItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -330,6 +346,9 @@ function ItemList({ store, onMonthlyDue }: ItemListProps) {
     onMonthlyDue(totals.monthly)
   }, [totals.monthly, onMonthlyDue])
 
+  if (tab === 'profile') return null
+  const setup = tab === 'setup'
+
   return (
     <section id="items" className="card">
       <div className="card-head">
@@ -339,40 +358,44 @@ function ItemList({ store, onMonthlyDue }: ItemListProps) {
         </span>
       </div>
 
-      <form className="item-form" onSubmit={addItem}>
-        <label className="field field-wide">
-          <span>Item</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Laptop" maxLength={120} required />
-        </label>
-        <label className="field">
-          <span>Total amount (₱)</span>
-          <input type="number" inputMode="decimal" min="1" step="any" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="60000" required />
-        </label>
-        <label className="field field-narrow">
-          <span>Term</span>
-          <input type="number" inputMode="numeric" min="1" step="1" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="12" required />
-        </label>
-        <label className="field field-narrow">
-          <span>Unit</span>
-          <select value={unit} onChange={(e) => setUnit(e.target.value as TermUnit)}>
-            <option value="months">Months</option>
-            <option value="years">Years</option>
-          </select>
-        </label>
-        <label className="field field-narrow">
-          <span>Months paid</span>
-          <input type="number" inputMode="numeric" min="0" max={termMonths >= 1 ? termMonths : undefined} step="1" value={monthsPaid} onChange={(e) => setMonthsPaid(e.target.value)} />
-        </label>
-        <button type="submit" className="primary" disabled={!valid}>
-          Add item
-        </button>
-      </form>
+      {setup && (
+        <>
+          <form className="item-form" onSubmit={addItem}>
+            <label className="field field-wide">
+              <span>Item</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Laptop" maxLength={120} required />
+            </label>
+            <label className="field">
+              <span>Total amount (₱)</span>
+              <input type="number" inputMode="decimal" min="1" step="any" value={total} onChange={(e) => setTotal(e.target.value)} placeholder="60000" required />
+            </label>
+            <label className="field field-narrow">
+              <span>Term</span>
+              <input type="number" inputMode="numeric" min="1" step="1" value={term} onChange={(e) => setTerm(e.target.value)} placeholder="12" required />
+            </label>
+            <label className="field field-narrow">
+              <span>Unit</span>
+              <select value={unit} onChange={(e) => setUnit(e.target.value as TermUnit)}>
+                <option value="months">Months</option>
+                <option value="years">Years</option>
+              </select>
+            </label>
+            <label className="field field-narrow">
+              <span>Months paid</span>
+              <input type="number" inputMode="numeric" min="0" max={termMonths >= 1 ? termMonths : undefined} step="1" value={monthsPaid} onChange={(e) => setMonthsPaid(e.target.value)} />
+            </label>
+            <button type="submit" className="primary" disabled={!valid}>
+              Add item
+            </button>
+          </form>
 
-      <div className="item-preview mono small" aria-live="polite">
-        {preview
-          ? `Auto-computed: ${peso.format(preview.monthly)} per month · ${peso.format(preview.paid)} paid · ${peso.format(preview.remaining)} left · ${preview.monthsLeft} of ${termMonths} months to go`
-          : 'Enter the amount and term to see the monthly payment.'}
-      </div>
+          <div className="item-preview mono small" aria-live="polite">
+            {preview
+              ? `Auto-computed: ${peso.format(preview.monthly)} per month · ${peso.format(preview.paid)} paid · ${peso.format(preview.remaining)} left · ${preview.monthsLeft} of ${termMonths} months to go`
+              : 'Enter the amount and term to see the monthly payment.'}
+          </div>
+        </>
+      )}
 
       {error && (
         <div className="error small" role="alert">
@@ -383,7 +406,15 @@ function ItemList({ store, onMonthlyDue }: ItemListProps) {
       {loading ? (
         <div className="empty muted">Loading items…</div>
       ) : items.length === 0 ? (
-        <div className="empty muted">No credit items yet. Add the first one above.</div>
+        <div className="empty muted">
+          {setup ? (
+            'No credit items yet. Add the first one above.'
+          ) : (
+            <>
+              No credit items yet. Add them in <a href="#setup">Setup</a>.
+            </>
+          )}
+        </div>
       ) : (
         <>
           {items.map((item) => {
@@ -408,17 +439,22 @@ function ItemList({ store, onMonthlyDue }: ItemListProps) {
                     {item.monthsPaid} of {item.termMonths} months paid
                   </div>
                 </div>
-                <div className="item-actions">
-                  <button type="button" className="ghost" onClick={() => void changePaid(item, -1)} disabled={item.monthsPaid === 0} aria-label={`Undo one paid month for ${item.name}`}>
-                    −1
-                  </button>
-                  <button type="button" className="ghost" onClick={() => void changePaid(item, 1)} disabled={done} aria-label={`Add one paid month for ${item.name}`}>
-                    +1 month paid
-                  </button>
-                  <button type="button" className="ghost" onClick={() => void removeItem(item.id)} aria-label={`Remove ${item.name}`}>
-                    Remove
-                  </button>
-                </div>
+                {setup ? (
+                  <div className="item-actions">
+                    <button type="button" className="ghost" onClick={() => void removeItem(item.id)} aria-label={`Remove ${item.name}`}>
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <div className="item-actions">
+                    <button type="button" className="ghost" onClick={() => void changePaid(item, -1)} disabled={item.monthsPaid === 0} aria-label={`Undo one paid month for ${item.name}`}>
+                      −1
+                    </button>
+                    <button type="button" className="ghost" onClick={() => void changePaid(item, 1)} disabled={done} aria-label={`Add one paid month for ${item.name}`}>
+                      +1 month paid
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}

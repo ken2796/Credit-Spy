@@ -3,9 +3,11 @@ import type { FormEvent } from 'react'
 import { peso } from '../lib/format'
 import { loansOf, owedTo, savedAmount } from '../lib/savingsStore'
 import type { NewEntry, SavingsEntry, SavingsGoal, SavingsStore } from '../lib/savingsStore'
+import type { Tab } from '../lib/tabs'
 import { today } from '../lib/transactionStore'
 
 interface Props {
+  tab: Tab
   store: SavingsStore
   /** Reports the total saved across all goals whenever it changes. */
   onTotalSaved: (total: number) => void
@@ -27,7 +29,8 @@ function monthsUntil(date: string): number {
   return Math.max(1, (year - now.getFullYear()) * 12 + (m - 1 - now.getMonth()))
 }
 
-export function Savings({ store, onTotalSaved }: Props) {
+/** Goals are created and removed on Setup; deposits, borrowing and paying back happen on Home. */
+export function Savings({ tab, store, onTotalSaved }: Props) {
   const [goals, setGoals] = useState<SavingsGoal[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -111,6 +114,9 @@ export function Savings({ store, onTotalSaved }: Props) {
     }
   }
 
+  if (tab === 'profile') return null
+  const setup = tab === 'setup'
+
   return (
     <section id="savings" className="card">
       <div className="card-head">
@@ -120,29 +126,31 @@ export function Savings({ store, onTotalSaved }: Props) {
         </span>
       </div>
 
-      {totalOwed > 0 && (
+      {!setup && totalOwed > 0 && (
         <div className="owed-banner">
           You still owe your savings <strong className="mono">{peso.format(totalOwed)}</strong>. Pay it back from each goal below.
         </div>
       )}
 
-      <form className="item-form" onSubmit={addGoal}>
-        <label className="field field-wide">
-          <span>Goal</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Emergency fund, Vacation" maxLength={120} required />
-        </label>
-        <label className="field">
-          <span>Target (₱)</span>
-          <input type="number" inputMode="decimal" min="1" step="any" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="50000" required />
-        </label>
-        <label className="field">
-          <span>Reach it by (optional)</span>
-          <input type="date" value={targetDate} min={today()} onChange={(e) => setTargetDate(e.target.value)} />
-        </label>
-        <button type="submit" className="primary" disabled={!valid}>
-          Add goal
-        </button>
-      </form>
+      {setup && (
+        <form className="item-form" onSubmit={addGoal}>
+          <label className="field field-wide">
+            <span>Goal</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Emergency fund, Vacation" maxLength={120} required />
+          </label>
+          <label className="field">
+            <span>Target (₱)</span>
+            <input type="number" inputMode="decimal" min="1" step="any" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="50000" required />
+          </label>
+          <label className="field">
+            <span>Reach it by (optional)</span>
+            <input type="date" value={targetDate} min={today()} onChange={(e) => setTargetDate(e.target.value)} />
+          </label>
+          <button type="submit" className="primary" disabled={!valid}>
+            Add goal
+          </button>
+        </form>
+      )}
 
       {error && (
         <div className="error small" role="alert">
@@ -153,7 +161,32 @@ export function Savings({ store, onTotalSaved }: Props) {
       {loading ? (
         <div className="empty muted">Loading savings…</div>
       ) : goals.length === 0 ? (
-        <div className="empty muted">No savings goals yet. Add one above, then record each deposit.</div>
+        <div className="empty muted">
+          {setup ? (
+            'No savings goals yet. Add one above, then record each deposit on Home.'
+          ) : (
+            <>
+              No savings goals yet. Add one in <a href="#setup">Setup</a>.
+            </>
+          )}
+        </div>
+      ) : setup ? (
+        goals.map((goal) => (
+          <div key={goal.id} className="item-row">
+            <div className="item-main">
+              <div className="strong">{goal.name}</div>
+              <div className="muted small">
+                Target {peso.format(goal.target)}
+                {goal.targetDate ? ` by ${dateLabel(goal.targetDate, true)}` : ''} · {peso.format(savedAmount(goal))} saved
+              </div>
+            </div>
+            <div className="item-actions">
+              <button type="button" className="ghost" onClick={() => void removeGoal(goal)} aria-label={`Remove the goal ${goal.name}`}>
+                Remove
+              </button>
+            </div>
+          </div>
+        ))
       ) : (
         goals.map((goal) => (
           <GoalRow
@@ -161,7 +194,6 @@ export function Savings({ store, onTotalSaved }: Props) {
             goal={goal}
             onAddEntry={(input) => addEntry(goal.id, input)}
             onRemoveEntry={(entryId) => void removeEntry(goal.id, entryId)}
-            onRemove={() => void removeGoal(goal)}
           />
         ))
       )}
@@ -173,7 +205,6 @@ interface GoalRowProps {
   goal: SavingsGoal
   onAddEntry: (entry: NewEntry) => Promise<boolean>
   onRemoveEntry: (entryId: string) => void
-  onRemove: () => void
 }
 
 const KIND_LABEL: Record<SavingsEntry['kind'], string> = {
@@ -183,7 +214,7 @@ const KIND_LABEL: Record<SavingsEntry['kind'], string> = {
   repay: 'Paid back',
 }
 
-function GoalRow({ goal, onAddEntry, onRemoveEntry, onRemove }: GoalRowProps) {
+function GoalRow({ goal, onAddEntry, onRemoveEntry }: GoalRowProps) {
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(today)
   const [borrowing, setBorrowing] = useState(false)
@@ -309,9 +340,6 @@ function GoalRow({ goal, onAddEntry, onRemoveEntry, onRemove }: GoalRowProps) {
       <div className="goal-links">
         <button type="button" className="link-button" onClick={() => setShowHistory(!showHistory)} aria-expanded={showHistory}>
           {showHistory ? 'Hide history' : `History (${goal.entries.length})`}
-        </button>
-        <button type="button" className="link-button" onClick={onRemove}>
-          Remove goal
         </button>
       </div>
 

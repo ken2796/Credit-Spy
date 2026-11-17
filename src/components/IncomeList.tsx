@@ -3,8 +3,10 @@ import type { FormEvent } from 'react'
 import { peso } from '../lib/format'
 import { FREQUENCIES, frequencyLabel, monthlyAmount } from '../lib/incomeStore'
 import type { Frequency, Income, IncomeStore } from '../lib/incomeStore'
+import type { Tab } from '../lib/tabs'
 
 interface Props {
+  tab: Tab
   store: IncomeStore
   /** Reports the total monthly income whenever the list changes. */
   onMonthlyTotal: (total: number) => void
@@ -14,7 +16,8 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong. Try again.'
 }
 
-export function IncomeList({ store, onMonthlyTotal }: Props) {
+/** Income sources are set up on the Setup tab; Home only shows their monthly total. */
+export function IncomeList({ tab, store, onMonthlyTotal }: Props) {
   const [incomes, setIncomes] = useState<Income[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -67,6 +70,8 @@ export function IncomeList({ store, onMonthlyTotal }: Props) {
       setError(errorText(e))
     }
   }
+
+  if (tab !== 'setup') return null
 
   return (
     <section id="income" className="card">

@@ -9,7 +9,7 @@ interface Props {
   tab: Tab
   store: IncomeStore
   /** Reports the total monthly income whenever the list changes. */
-  onMonthlyTotal: (total: number) => void
+  onMonthlyTotal?: (total: number) => void
 }
 
 function errorText(error: unknown): string {
@@ -40,7 +40,7 @@ export function IncomeList({ tab, store, onMonthlyTotal }: Props) {
   const total = incomes.reduce((sum, i) => sum + monthlyAmount(i), 0)
 
   useEffect(() => {
-    onMonthlyTotal(total)
+    onMonthlyTotal?.(total)
   }, [total, onMonthlyTotal])
 
   const amountValue = Number(amount)

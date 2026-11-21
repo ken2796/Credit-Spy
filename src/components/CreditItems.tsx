@@ -134,9 +134,7 @@ export function CreditItems({ tab, refreshTick }: { tab: Tab; refreshTick: numbe
   const [memberCredit, setMemberCredit] = useState<MemberCredit[]>([])
   const reportMemberCredit = useCallback((credit: MemberCredit[]) => setMemberCredit(credit), [])
 
-  const [monthlyIncome, setMonthlyIncome] = useState(0)
   const [monthlyDues, setMonthlyDues] = useState(0)
-  const reportIncome = useCallback((total: number) => setMonthlyIncome(total), [])
   const reportDues = useCallback((total: number) => setMonthlyDues(total), [])
   const [totalSaved, setTotalSaved] = useState(0)
   const reportSaved = useCallback((total: number) => setTotalSaved(total), [])
@@ -182,6 +180,8 @@ export function CreditItems({ tab, refreshTick }: { tab: Tab; refreshTick: numbe
     )
   }
 
+  // "Income" on Home is the money actually recorded as coming in this month, not the planned salary in Setup.
+  const monthlyIncome = memberMonth.reduce((sum, g) => sum + g.moneyIn, 0)
   const left = monthlyIncome - monthlyDues
 
   // One row per member: their money in and out this month, and the credit they owe.
@@ -206,7 +206,7 @@ export function CreditItems({ tab, refreshTick }: { tab: Tab; refreshTick: numbe
           </div>
           <div className="budget-grid">
             <div className="budget-stat">
-              <span className="muted small">Income</span>
+              <span className="muted small">Money in</span>
               <span className="budget-value mono">{peso.format(monthlyIncome)}</span>
             </div>
             <div className="budget-stat">
@@ -232,11 +232,9 @@ export function CreditItems({ tab, refreshTick }: { tab: Tab; refreshTick: numbe
           )}
           <div className="muted small">
             {monthlyIncome > 0 ? (
-              `Credit dues take ${Math.round((monthlyDues / monthlyIncome) * 100)}% of the monthly income.`
+              `Credit dues take ${Math.round((monthlyDues / monthlyIncome) * 100)}% of the money that came in this month.`
             ) : (
-              <>
-                Add your income in <a href="#setup">Setup</a> to see how much is left after your credit dues.
-              </>
+              'Record money in under Members’ money below to see how much is left after your credit dues.'
             )}
           </div>
           {memberRows.length > 1 && (
@@ -265,7 +263,7 @@ export function CreditItems({ tab, refreshTick }: { tab: Tab; refreshTick: numbe
         </section>
       )}
       {/* These stay mounted on every tab so Home's totals are always current; each renders the part for this tab. */}
-      <IncomeList key={`income-${key}`} tab={tab} store={incomeStore ?? localIncomeStore} onMonthlyTotal={reportIncome} />
+      <IncomeList key={`income-${key}`} tab={tab} store={incomeStore ?? localIncomeStore} />
       <ItemList
         key={`items-${key}`}
         tab={tab}
